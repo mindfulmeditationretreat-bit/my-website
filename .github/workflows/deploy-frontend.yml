@@ -57,4 +57,4 @@ jobs:
           ssh -i ~/.ssh/deploy_key \
               -p ${{ secrets.CPANEL_SSH_PORT }} \
               ${{ secrets.CPANEL_USERNAME }}@${{ secrets.CPANEL_HOST }} \
-              'mkdir -p ~/nextjs && tar -xzf ~/frontend.tar.gz -C ~/nextjs && rm ~/frontend.tar.gz && PM2=/home/mindful1/npm-global/bin/pm2 && NODE=/opt/alt/alt-nodejs20/root/usr/bin/node && $PM2 delete mindfull-frontend 2>/dev/null || true && cd ~/nextjs && PORT=3000 HOSTNAME=127.0.0.1 $PM2 start server.js --name mindfull-frontend --interpreter $NODE && $PM2 save --force && echo "Frontend deployed"'
+              'mkdir -p ~/nextjs && tar -xzf ~/frontend.tar.gz -C ~/nextjs && rm ~/frontend.tar.gz && PM2=/home/mindful1/npm-global/bin/pm2 && NODE=/opt/alt/alt-nodejs20/root/usr/bin/node && $PM2 delete mindfull-frontend 2>/dev/null || true && cd ~/nextjs && PORT=3000 HOSTNAME=127.0.0.1 INTERNAL_API_URL=http://127.0.0.1:5050/api $PM2 start server.js --name mindfull-frontend --interpreter $NODE && $PM2 save --force && echo "Frontend deployed"'

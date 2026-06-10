@@ -3,13 +3,15 @@ import Link from 'next/link';
 import { requireUser } from '@/lib/auth';
 
 async function fetchStats() {
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+  const apiUrl = process.env.INTERNAL_API_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5050/api';
   const token = cookies().get('token')?.value;
   if (!token) return null;
-  const res = await fetch(`${apiUrl}/admin/stats`, {
-    headers: { Cookie: `token=${token}` }, cache: 'no-store',
-  });
-  return res.ok ? res.json() : null;
+  try {
+    const res = await fetch(`${apiUrl}/admin/stats`, {
+      headers: { Cookie: `token=${token}` }, cache: 'no-store',
+    });
+    return res.ok ? res.json() : null;
+  } catch { return null; }
 }
 
 const NAV_ITEMS = [

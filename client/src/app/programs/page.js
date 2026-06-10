@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { headers } from 'next/headers';
 
 async function fetchPrograms() {
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+  const apiUrl = process.env.INTERNAL_API_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5050/api';
   try {
     const res = await fetch(`${apiUrl}/programs`, { cache: 'no-store' });
     if (!res.ok) return [];

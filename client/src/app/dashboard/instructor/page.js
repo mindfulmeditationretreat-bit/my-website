@@ -2,7 +2,7 @@ import { cookies } from 'next/headers';
 import { requireUser } from '@/lib/auth';
 
 async function fetchData() {
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+  const apiUrl = process.env.INTERNAL_API_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5050/api';
   const token = cookies().get('token')?.value;
   if (!token) return { users: [], unread: 0 };
   const [usersRes, notifRes] = await Promise.all([
