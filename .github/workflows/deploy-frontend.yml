@@ -1,0 +1,62 @@
+name: Deploy Frontend to cPanel
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'client/**'
+      - '.github/workflows/deploy-frontend.yml'
+
+jobs:
+  deploy-frontend:
+    name: Build and deploy Next.js
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: client/package-lock.json
+
+      - name: Install dependencies
+        working-directory: client
+        run: npm ci
+
+      - name: Build Next.js
+        working-directory: client
+        env:
+          NEXT_PUBLIC_API_URL: https://api.mindfulmeditationretreat.org/api
+        run: npm run build
+
+      - name: Package standalone output
+        run: |
+          cp -r client/.next/static client/.next/standalone/.next/static
+          cp -r client/public client/.next/standalone/public
+          tar -czf /tmp/frontend.tar.gz -C client/.next/standalone .
+
+      - name: Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.CPANEL_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -p ${{ secrets.CPANEL_SSH_PORT }} ${{ secrets.CPANEL_HOST }} >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Upload archive
+        run: |
+          scp -i ~/.ssh/deploy_key \
+              -P ${{ secrets.CPANEL_SSH_PORT }} \
+              /tmp/frontend.tar.gz \
+              ${{ secrets.CPANEL_USERNAME }}@${{ secrets.CPANEL_HOST }}:~/frontend.tar.gz
+
+      - name: Extract and restart
+        run: |
+          ssh -i ~/.ssh/deploy_key \
+              -p ${{ secrets.CPANEL_SSH_PORT }} \
+              ${{ secrets.CPANEL_USERNAME }}@${{ secrets.CPANEL_HOST }} \
+              'mkdir -p ~/nextjs && tar -xzf ~/frontend.tar.gz -C ~/nextjs && rm ~/frontend.tar.gz && PM2=/home/mindful1/npm-global/bin/pm2 && NODE=/opt/alt/alt-nodejs20/root/usr/bin/node && $PM2 delete mindfull-frontend 2>/dev/null || true && cd ~/nextjs && PORT=3000 HOSTNAME=127.0.0.1 $PM2 start server.js --name mindfull-frontend --interpreter $NODE && $PM2 save --force && echo "Frontend deployed"'
