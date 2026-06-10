@@ -1,5 +1,5 @@
 const { eq, and } = require('drizzle-orm');
-const { db } = require('../lib/prisma');
+const { db } = require('../lib/db');
 const { progressEntries } = require('../db/schema');
 
 const TYPES = new Set(['weight', 'meditation', 'mood']);

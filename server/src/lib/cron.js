@@ -1,5 +1,5 @@
 const cron = require('node-cron');
-const { db } = require('./prisma');
+const { db } = require('./db');
 const { subscriptions, notifications } = require('../db/schema');
 const { eq, and, lte, gt } = require('drizzle-orm');
 const { sendMail, templates } = require('./mailer');

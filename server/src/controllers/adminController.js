@@ -1,6 +1,6 @@
 const bcrypt = require('bcryptjs');
 const { eq, and, or, like, count, inArray } = require('drizzle-orm');
-const { db } = require('../lib/prisma');
+const { db } = require('../lib/db');
 const { users, subscriptions, programs, notifications } = require('../db/schema');
 const { sendMail, templates } = require('../lib/mailer');
 const { notify } = require('../lib/notify');

@@ -1,6 +1,6 @@
 const passport = require('passport');
 const { Strategy: GoogleStrategy } = require('passport-google-oauth20');
-const { db } = require('./lib/prisma');
+const { db } = require('./lib/db');
 const { users } = require('./db/schema');
 const { eq, or } = require('drizzle-orm');
 

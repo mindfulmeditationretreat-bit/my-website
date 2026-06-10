@@ -1,5 +1,5 @@
 const { eq, and, inArray, count } = require('drizzle-orm');
-const { db } = require('../lib/prisma');
+const { db } = require('../lib/db');
 const { subscriptions, programs, users, notifications } = require('../db/schema');
 const { sendMail, templates } = require('../lib/mailer');
 

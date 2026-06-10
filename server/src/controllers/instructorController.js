@@ -1,5 +1,5 @@
 const { eq, and } = require('drizzle-orm');
-const { db } = require('../lib/prisma');
+const { db } = require('../lib/db');
 const { instructorNotes, progressEntries } = require('../db/schema');
 
 async function listInstructors(_req, res, next) {

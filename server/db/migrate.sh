@@ -18,7 +18,7 @@ echo "Running migrations on $DB_HOST:$DB_PORT/$DB_NAME"
 
 # Create migrations tracking table if it doesn't exist
 $MYSQL_CMD -e "
-CREATE TABLE IF NOT EXISTS \`_prisma_migrations\` (
+CREATE TABLE IF NOT EXISTS \`_migrations\` (
   \`id\` VARCHAR(36) NOT NULL,
   \`checksum\` VARCHAR(64) NOT NULL,
   \`finished_at\` DATETIME(3) NULL,
@@ -32,13 +32,8 @@ CREATE TABLE IF NOT EXISTS \`_prisma_migrations\` (
 "
 
 # Loop through all migration folders in order
-for migration_dir in prisma/migrations/*/; do
+for migration_dir in db/migrations/*/; do
   migration_name=$(basename "$migration_dir")
-
-  # Skip non-migration folders
-  if [ "$migration_name" = "migration_lock.toml" ]; then
-    continue
-  fi
 
   sql_file="$migration_dir/migration.sql"
   if [ ! -f "$sql_file" ]; then
@@ -46,7 +41,7 @@ for migration_dir in prisma/migrations/*/; do
   fi
 
   # Check if already applied
-  applied=$($MYSQL_CMD -sN -e "SELECT COUNT(*) FROM \`_prisma_migrations\` WHERE migration_name='$migration_name' AND finished_at IS NOT NULL;")
+  applied=$($MYSQL_CMD -sN -e "SELECT COUNT(*) FROM \`_migrations\` WHERE migration_name='$migration_name' AND finished_at IS NOT NULL;")
 
   if [ "$applied" -gt "0" ]; then
     echo "  ✓ $migration_name (already applied)"
@@ -54,7 +49,7 @@ for migration_dir in prisma/migrations/*/; do
     echo "  → Applying $migration_name..."
     $MYSQL_CMD < "$sql_file"
     $MYSQL_CMD -e "
-      INSERT INTO \`_prisma_migrations\` (id, checksum, migration_name, finished_at, applied_steps_count)
+      INSERT INTO \`_migrations\` (id, checksum, migration_name, finished_at, applied_steps_count)
       VALUES (UUID(), 'manual', '$migration_name', NOW(3), 1)
       ON DUPLICATE KEY UPDATE finished_at=NOW(3);
     "

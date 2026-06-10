@@ -1,5 +1,5 @@
 const { eq, and, or, isNull, count } = require('drizzle-orm');
-const { db } = require('../lib/prisma');
+const { db } = require('../lib/db');
 const { messages, subscriptions } = require('../db/schema');
 const { notify } = require('../lib/notify');
 const { getIO } = require('../lib/socket');

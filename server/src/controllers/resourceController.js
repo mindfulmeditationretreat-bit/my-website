@@ -1,5 +1,5 @@
 const { eq, and, inArray } = require('drizzle-orm');
-const { db } = require('../lib/prisma');
+const { db } = require('../lib/db');
 const { resources, subscriptions } = require('../db/schema');
 const { deleteFile } = require('../middleware/upload');
 const { userHasActiveAccess } = require('./subscriptionController');

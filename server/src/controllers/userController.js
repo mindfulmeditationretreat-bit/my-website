@@ -1,6 +1,6 @@
 const bcrypt = require('bcryptjs');
 const { eq } = require('drizzle-orm');
-const { db } = require('../lib/prisma');
+const { db } = require('../lib/db');
 const { users } = require('../db/schema');
 const { deleteFile } = require('../middleware/upload');
 

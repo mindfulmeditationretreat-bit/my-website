@@ -1,5 +1,5 @@
 const { eq, and, isNull } = require('drizzle-orm');
-const { db } = require('../lib/prisma');
+const { db } = require('../lib/db');
 const { notifications } = require('../db/schema');
 
 async function listMine(req, res, next) {

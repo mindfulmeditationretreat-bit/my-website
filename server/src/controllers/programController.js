@@ -1,5 +1,5 @@
 const { eq } = require('drizzle-orm');
-const { db } = require('../lib/prisma');
+const { db } = require('../lib/db');
 
 async function listPrograms(_req, res, next) {
   try {

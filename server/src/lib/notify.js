@@ -1,4 +1,4 @@
-const { db } = require('./prisma');
+const { db } = require('./db');
 const { users, notifications } = require('../db/schema');
 const { eq } = require('drizzle-orm');
 const { sendMail, templates } = require('./mailer');

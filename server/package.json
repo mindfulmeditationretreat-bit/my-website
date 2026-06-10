@@ -5,8 +5,8 @@
   "scripts": {
     "start": "node src/index.js",
     "dev": "nodemon src/index.js",
-    "db:deploy": "bash prisma/migrate.sh",
-    "db:seed": "node prisma/seed.js"
+    "db:deploy": "bash db/migrate.sh",
+    "db:seed": "node db/seed.js"
   },
   "dependencies": {
     "@imagekit/nodejs": "^7.7.0",

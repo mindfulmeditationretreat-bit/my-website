@@ -1,7 +1,7 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { eq } = require('drizzle-orm');
-const { db } = require('../lib/prisma');
+const { db } = require('../lib/db');
 const { users, verificationTokens, passwordResetTokens } = require('../db/schema');
 const { randomToken, hoursFromNow, minutesFromNow } = require('../lib/tokens');
 const { sendMail, templates } = require('../lib/mailer');
