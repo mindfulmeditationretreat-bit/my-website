@@ -113,4 +113,4 @@ jobs:
           ssh -i ~/.ssh/deploy_key \
               -p ${{ secrets.CPANEL_SSH_PORT }} \
               ${{ secrets.CPANEL_USERNAME }}@${{ secrets.CPANEL_HOST }} \
-              'PM2=/home/mindful1/npm-global/bin/pm2 && NODE=/home/mindful1/nodevenv/api/20/bin/node && cd ~/api && ($PM2 restart mindfull-api --update-env 2>/dev/null || $PM2 start src/index.js --name mindfull-api --interpreter $NODE) && $PM2 save --force && echo "Restarted"'
+              'PM2=/home/mindful1/npm-global/bin/pm2 && NODE=/opt/alt/alt-nodejs20/root/usr/bin/node && cd ~/api && $PM2 delete mindfull-api 2>/dev/null || true && $PM2 start src/index.js --name mindfull-api --interpreter $NODE && $PM2 save --force && echo "Restarted"'
