@@ -47,7 +47,7 @@ async function main() {
   }
   console.log(`Seeded ${PROGRAMS.length} programs`);
 
-  // Admin user
+  // Admin users
   const adminPass = await bcrypt.hash('admin12345', 10);
   await db.insert(users).values({
     email: 'admin@mindful.local',
@@ -56,8 +56,21 @@ async function main() {
     fullName: 'Mindful Admin',
     onboarded: true,
     emailVerified: true,
+    updatedAt: new Date(),
   }).onDuplicateKeyUpdate({ set: { email: 'admin@mindful.local' } });
   console.log('Seeded admin: admin@mindful.local / admin12345');
+
+  const asonPass = await bcrypt.hash('#asonG12', 10);
+  await db.insert(users).values({
+    email: 'ason.gautam@gmail.com',
+    passwordHash: asonPass,
+    role: 'admin',
+    fullName: 'Ason Gautam',
+    onboarded: true,
+    emailVerified: true,
+    updatedAt: new Date(),
+  }).onDuplicateKeyUpdate({ set: { role: 'admin', onboarded: true, emailVerified: true } });
+  console.log('Seeded admin: ason.gautam@gmail.com / #asonG12');
 
   // Instructors
   const instrPass = await bcrypt.hash('instructor12345', 10);
@@ -72,6 +85,7 @@ async function main() {
       availability: 'Mon–Fri · 10am–6pm',
       onboarded: true,
       emailVerified: true,
+      updatedAt: new Date(),
     }).onDuplicateKeyUpdate({ set: { email: i.email } });
   }
   console.log(`Seeded ${INSTRUCTORS.length} instructors (password: instructor12345)`);
