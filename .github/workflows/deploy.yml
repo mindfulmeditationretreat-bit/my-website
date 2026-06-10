@@ -48,39 +48,36 @@ jobs:
               'bash -s' << 'ENDSSH'
           set -e
 
+          # Load Node.js and PM2 into PATH
+          export PATH=/opt/alt/alt-nodejs22/root/usr/bin:$HOME/npm-global/bin:$PATH
+
           cd ~/api
 
           echo "──────────────────────────────────────"
           echo " Writing .env"
           echo "──────────────────────────────────────"
-          cat > .env << 'ENVEOF'
-          PORT=5000
-          NODE_ENV=production
-          CLIENT_ORIGIN=https://mindfulmeditationretreat.org
-          SERVER_ORIGIN=https://api.mindfulmeditationretreat.org
-
-          DATABASE_URL=${{ secrets.DATABASE_URL }}
-
-          JWT_SECRET=${{ secrets.JWT_SECRET }}
-          JWT_EXPIRES_IN=7d
-          SESSION_SECRET=${{ secrets.SESSION_SECRET }}
-
-          GOOGLE_CLIENT_ID=${{ secrets.GOOGLE_CLIENT_ID }}
-          GOOGLE_CLIENT_SECRET=${{ secrets.GOOGLE_CLIENT_SECRET }}
-
-          SMTP_HOST=${{ secrets.SMTP_HOST }}
-          SMTP_PORT=${{ secrets.SMTP_PORT }}
-          SMTP_USER=${{ secrets.SMTP_USER }}
-          SMTP_PASS=${{ secrets.SMTP_PASS }}
-          SMTP_FROM=${{ secrets.SMTP_FROM }}
-
-          IMAGEKIT_PUBLIC_KEY=${{ secrets.IMAGEKIT_PUBLIC_KEY }}
-          IMAGEKIT_PRIVATE_KEY=${{ secrets.IMAGEKIT_PRIVATE_KEY }}
-          IMAGEKIT_URL_ENDPOINT=${{ secrets.IMAGEKIT_URL_ENDPOINT }}
-
-          UPLOAD_DIR=uploads
-          MAX_UPLOAD_MB=25
-          ENVEOF
+          cat > .env << ENVEOF
+PORT=5000
+NODE_ENV=production
+CLIENT_ORIGIN=https://mindfulmeditationretreat.org
+SERVER_ORIGIN=https://api.mindfulmeditationretreat.org
+DATABASE_URL=${{ secrets.DATABASE_URL }}
+JWT_SECRET=${{ secrets.JWT_SECRET }}
+JWT_EXPIRES_IN=7d
+SESSION_SECRET=${{ secrets.SESSION_SECRET }}
+GOOGLE_CLIENT_ID=${{ secrets.GOOGLE_CLIENT_ID }}
+GOOGLE_CLIENT_SECRET=${{ secrets.GOOGLE_CLIENT_SECRET }}
+SMTP_HOST=${{ secrets.SMTP_HOST }}
+SMTP_PORT=${{ secrets.SMTP_PORT }}
+SMTP_USER=${{ secrets.SMTP_USER }}
+SMTP_PASS=${{ secrets.SMTP_PASS }}
+SMTP_FROM=${{ secrets.SMTP_FROM }}
+IMAGEKIT_PUBLIC_KEY=${{ secrets.IMAGEKIT_PUBLIC_KEY }}
+IMAGEKIT_PRIVATE_KEY=${{ secrets.IMAGEKIT_PRIVATE_KEY }}
+IMAGEKIT_URL_ENDPOINT=${{ secrets.IMAGEKIT_URL_ENDPOINT }}
+UPLOAD_DIR=uploads
+MAX_UPLOAD_MB=25
+ENVEOF
 
           echo "──────────────────────────────────────"
           echo " npm install"
@@ -109,7 +106,7 @@ jobs:
             pm2 restart mindfull-api --update-env
           else
             pm2 start ecosystem.config.js --env production
-            pm2 save
+            pm2 save --force
           fi
 
           echo ""
