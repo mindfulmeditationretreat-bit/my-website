@@ -102,6 +102,7 @@ async function createUser(req, res, next) {
       availability: availability || null,
       onboarded: userOnboarded,
       emailVerified: true,
+      updatedAt: new Date(),
     }).$returningId();
     const user = await db.query.users.findFirst({ where: (t, { eq }) => eq(t.id, id) });
 
@@ -237,6 +238,7 @@ async function assignProgram(req, res, next) {
       trialStartedAt: now,
       trialEndsAt,
       currentPeriodEnd: trialEndsAt,
+      updatedAt: now,
     }).$returningId();
     const sub = await db.query.subscriptions.findFirst({ where: (t, { eq }) => eq(t.id, id) });
 

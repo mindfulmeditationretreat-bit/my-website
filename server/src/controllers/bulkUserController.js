@@ -99,6 +99,7 @@ async function bulkCreateUsers(req, res, next) {
         role:         'user',
         onboarded:    !!fullName,
         emailVerified: true,
+        updatedAt:    new Date(),
       }).$returningId();
       const user = await db.query.users.findFirst({ where: (t, { eq }) => eq(t.id, id) });
 
@@ -116,6 +117,7 @@ async function bulkCreateUsers(req, res, next) {
             programId:   match.id,
             status:      'trialing',
             trialEndsAt: trialEnd,
+            updatedAt:   new Date(),
           });
           enrolledProgram = match.name;
         }

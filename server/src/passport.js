@@ -30,6 +30,7 @@ function setupPassport(app) {
             photoUrl: profile.photos?.[0]?.value || null,
             emailVerified: true,
             role: 'user',
+            updatedAt: new Date(),
           }).$returningId();
           user = await db.query.users.findFirst({ where: (t, { eq: e }) => e(t.id, result.id) });
         } else if (!user.googleId) {

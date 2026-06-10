@@ -22,6 +22,7 @@ async function startTrial(req, res, next) {
       status: 'trialing',
       trialStartedAt: now,
       trialEndsAt,
+      updatedAt: now,
     }).$returningId();
     const sub = await db.query.subscriptions.findFirst({
       where: (t, { eq }) => eq(t.id, id),

@@ -54,7 +54,7 @@ async function signup(req, res, next) {
     if (existing) return res.status(409).json({ message: 'Email already registered' });
 
     const passwordHash = await bcrypt.hash(password, 10);
-    const [{ id }] = await db.insert(users).values({ email, passwordHash, role: 'user' }).$returningId();
+    const [{ id }] = await db.insert(users).values({ email, passwordHash, role: 'user', updatedAt: new Date() }).$returningId();
     const user = await db.query.users.findFirst({ where: (t, { eq }) => eq(t.id, id) });
 
     try {
