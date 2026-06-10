@@ -81,9 +81,9 @@ jobs:
               ${{ secrets.CPANEL_USERNAME }}@${{ secrets.CPANEL_HOST }} \
               'export PATH=/opt/alt/alt-nodejs22/root/usr/bin:$HOME/npm-global/bin:$PATH && cd ~/api && bash prisma/migrate.sh'
 
-      - name: Start app with PM2
+      - name: Restart app via cPanel Passenger
         run: |
           ssh -i ~/.ssh/deploy_key \
               -p ${{ secrets.CPANEL_SSH_PORT }} \
               ${{ secrets.CPANEL_USERNAME }}@${{ secrets.CPANEL_HOST }} \
-              'export PATH=/opt/alt/alt-nodejs22/root/usr/bin:$HOME/npm-global/bin:$PATH && cd ~/api && (pm2 restart mindfull-api --update-env 2>/dev/null || pm2 start ecosystem.config.js --env production) && pm2 save --force && echo "App started!"'
+              'touch ~/api/tmp/restart.txt && echo "App restart triggered"'
