@@ -1,9 +1,9 @@
 'use client';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { api, dashboardPathFor } from '@/lib/api';
 
-export default function CheckEmailPage() {
+function CheckEmailContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const emailSent = searchParams.get('sent') !== '0';
@@ -61,13 +61,7 @@ export default function CheckEmailPage() {
     }
   }
 
-  if (!ready) {
-    return (
-      <main className="min-h-screen flex items-center justify-center px-6">
-        <p className="text-cream/50">Loading…</p>
-      </main>
-    );
-  }
+  if (!ready) return null;
 
   return (
     <main className="min-h-screen flex items-center justify-center px-6 py-12">
@@ -115,5 +109,13 @@ export default function CheckEmailPage() {
         </button>
       </div>
     </main>
+  );
+}
+
+export default function CheckEmailPage() {
+  return (
+    <Suspense fallback={<main className="min-h-screen flex items-center justify-center px-6"><p className="text-cream/50">Loading…</p></main>}>
+      <CheckEmailContent />
+    </Suspense>
   );
 }
