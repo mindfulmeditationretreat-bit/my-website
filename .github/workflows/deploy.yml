@@ -14,11 +14,9 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # ── 1. Checkout ────────────────────────────────────────────────────────────
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # ── 2. SSH key setup ────────────────────────────────────────────────────────
       - name: Setup SSH key
         run: |
           mkdir -p ~/.ssh
@@ -26,7 +24,6 @@ jobs:
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -p ${{ secrets.CPANEL_SSH_PORT }} ${{ secrets.CPANEL_HOST }} >> ~/.ssh/known_hosts 2>/dev/null
 
-      # ── 3. Upload server files via rsync ────────────────────────────────────────
       - name: Upload backend files
         run: |
           rsync -avz --delete \
@@ -39,76 +36,74 @@ jobs:
             ./server/ \
             ${{ secrets.CPANEL_USERNAME }}@${{ secrets.CPANEL_HOST }}:~/api/
 
-      # ── 4. Run all post-deploy steps on the server ─────────────────────────────
       - name: Post-deploy (install, migrate, seed, restart)
+        env:
+          DB_URL: ${{ secrets.DATABASE_URL }}
+          JWT: ${{ secrets.JWT_SECRET }}
+          SESSION: ${{ secrets.SESSION_SECRET }}
+          G_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          G_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          SMTP_H: ${{ secrets.SMTP_HOST }}
+          SMTP_P: ${{ secrets.SMTP_PORT }}
+          SMTP_U: ${{ secrets.SMTP_USER }}
+          SMTP_PASS: ${{ secrets.SMTP_PASS }}
+          SMTP_F: ${{ secrets.SMTP_FROM }}
+          IK_PUB: ${{ secrets.IMAGEKIT_PUBLIC_KEY }}
+          IK_PRIV: ${{ secrets.IMAGEKIT_PRIVATE_KEY }}
+          IK_URL: ${{ secrets.IMAGEKIT_URL_ENDPOINT }}
         run: |
           ssh -i ~/.ssh/deploy_key \
               -p ${{ secrets.CPANEL_SSH_PORT }} \
               ${{ secrets.CPANEL_USERNAME }}@${{ secrets.CPANEL_HOST }} \
-              'bash -s' << 'ENDSSH'
-          set -e
+              "bash -s" << ENDSSH
+            set -e
+            export PATH=/opt/alt/alt-nodejs22/root/usr/bin:\$HOME/npm-global/bin:\$PATH
 
-          # Load Node.js and PM2 into PATH
-          export PATH=/opt/alt/alt-nodejs22/root/usr/bin:$HOME/npm-global/bin:$PATH
+            cd ~/api
 
-          cd ~/api
-
-          echo "──────────────────────────────────────"
-          echo " Writing .env"
-          echo "──────────────────────────────────────"
-          cat > .env << ENVEOF
+            echo "Writing .env..."
+            cat > .env << EOF
 PORT=5000
 NODE_ENV=production
 CLIENT_ORIGIN=https://mindfulmeditationretreat.org
 SERVER_ORIGIN=https://api.mindfulmeditationretreat.org
-DATABASE_URL=${{ secrets.DATABASE_URL }}
-JWT_SECRET=${{ secrets.JWT_SECRET }}
+DATABASE_URL=${DB_URL}
+JWT_SECRET=${JWT}
 JWT_EXPIRES_IN=7d
-SESSION_SECRET=${{ secrets.SESSION_SECRET }}
-GOOGLE_CLIENT_ID=${{ secrets.GOOGLE_CLIENT_ID }}
-GOOGLE_CLIENT_SECRET=${{ secrets.GOOGLE_CLIENT_SECRET }}
-SMTP_HOST=${{ secrets.SMTP_HOST }}
-SMTP_PORT=${{ secrets.SMTP_PORT }}
-SMTP_USER=${{ secrets.SMTP_USER }}
-SMTP_PASS=${{ secrets.SMTP_PASS }}
-SMTP_FROM=${{ secrets.SMTP_FROM }}
-IMAGEKIT_PUBLIC_KEY=${{ secrets.IMAGEKIT_PUBLIC_KEY }}
-IMAGEKIT_PRIVATE_KEY=${{ secrets.IMAGEKIT_PRIVATE_KEY }}
-IMAGEKIT_URL_ENDPOINT=${{ secrets.IMAGEKIT_URL_ENDPOINT }}
+SESSION_SECRET=${SESSION}
+GOOGLE_CLIENT_ID=${G_ID}
+GOOGLE_CLIENT_SECRET=${G_SECRET}
+SMTP_HOST=${SMTP_H}
+SMTP_PORT=${SMTP_P}
+SMTP_USER=${SMTP_U}
+SMTP_PASS=${SMTP_PASS}
+SMTP_FROM=${SMTP_F}
+IMAGEKIT_PUBLIC_KEY=${IK_PUB}
+IMAGEKIT_PRIVATE_KEY=${IK_PRIV}
+IMAGEKIT_URL_ENDPOINT=${IK_URL}
 UPLOAD_DIR=uploads
 MAX_UPLOAD_MB=25
-ENVEOF
+EOF
 
-          echo "──────────────────────────────────────"
-          echo " npm install"
-          echo "──────────────────────────────────────"
-          npm install --omit=dev
+            echo "npm install..."
+            npm install --omit=dev
 
-          echo "──────────────────────────────────────"
-          echo " Prisma generate"
-          echo "──────────────────────────────────────"
-          npx prisma generate
+            echo "Prisma generate..."
+            npx prisma generate
 
-          echo "──────────────────────────────────────"
-          echo " Prisma migrate deploy"
-          echo "──────────────────────────────────────"
-          npx prisma migrate deploy
+            echo "Prisma migrate..."
+            npx prisma migrate deploy
 
-          echo "──────────────────────────────────────"
-          echo " Prisma seed"
-          echo "──────────────────────────────────────"
-          npx prisma db seed || echo "Seed skipped"
+            echo "Prisma seed..."
+            npx prisma db seed || echo "Seed skipped"
 
-          echo "──────────────────────────────────────"
-          echo " PM2 restart"
-          echo "──────────────────────────────────────"
-          if pm2 list | grep -q "mindfull-api"; then
-            pm2 restart mindfull-api --update-env
-          else
-            pm2 start ecosystem.config.js --env production
-            pm2 save --force
-          fi
+            echo "PM2 restart..."
+            if pm2 list | grep -q "mindfull-api"; then
+              pm2 restart mindfull-api --update-env
+            else
+              pm2 start ecosystem.config.js --env production
+              pm2 save --force
+            fi
 
-          echo ""
-          echo "✓ Backend deployment complete"
+            echo "Deployment complete!"
           ENDSSH
