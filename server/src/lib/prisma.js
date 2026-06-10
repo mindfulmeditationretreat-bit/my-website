@@ -1,7 +1,4 @@
-const { PrismaClient } = require('@prisma/client');
+// Re-export Drizzle db — named 'db' throughout the codebase
+const { db } = require('../db/index');
 
-const prisma = new PrismaClient({
-  log: process.env.NODE_ENV === 'development' ? ['warn', 'error'] : ['error'],
-});
-
-module.exports = { prisma };
+module.exports = { db };

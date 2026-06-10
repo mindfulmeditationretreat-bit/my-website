@@ -4,7 +4,6 @@ const { upload } = require('../middleware/upload');
 const {
   listResources, getResource, createResource, deleteResource,
 } = require('../controllers/resourceController');
-const { prisma } = require('../lib/prisma');
 const jwt = require('jsonwebtoken');
 
 function attachUserIfPresent(req, _res, next) {

@@ -1,6 +1,8 @@
 const passport = require('passport');
 const { Strategy: GoogleStrategy } = require('passport-google-oauth20');
-const { prisma } = require('./lib/prisma');
+const { db } = require('./lib/prisma');
+const { users } = require('./db/schema');
+const { eq, or } = require('drizzle-orm');
 
 function setupPassport(app) {
   if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
@@ -17,25 +19,22 @@ function setupPassport(app) {
       try {
         const email = profile.emails?.[0]?.value;
         if (!email) return done(new Error('No email returned from Google'));
-        let user = await prisma.user.findFirst({
-          where: { OR: [{ googleId: profile.id }, { email }] },
+        let user = await db.query.users.findFirst({
+          where: (t, { or: o, eq: e }) => o(e(t.googleId, profile.id), e(t.email, email)),
         });
         if (!user) {
-          user = await prisma.user.create({
-            data: {
-              email,
-              googleId: profile.id,
-              fullName: profile.displayName || null,
-              photoUrl: profile.photos?.[0]?.value || null,
-              emailVerified: true,
-              role: 'user',
-            },
-          });
+          const [result] = await db.insert(users).values({
+            email,
+            googleId: profile.id,
+            fullName: profile.displayName || null,
+            photoUrl: profile.photos?.[0]?.value || null,
+            emailVerified: true,
+            role: 'user',
+          }).$returningId();
+          user = await db.query.users.findFirst({ where: (t, { eq: e }) => e(t.id, result.id) });
         } else if (!user.googleId) {
-          user = await prisma.user.update({
-            where: { id: user.id },
-            data: { googleId: profile.id, emailVerified: true },
-          });
+          await db.update(users).set({ googleId: profile.id, emailVerified: true }).where(eq(users.id, user.id));
+          user = await db.query.users.findFirst({ where: (t, { eq: e }) => e(t.id, user.id) });
         }
         done(null, user);
       } catch (err) { done(err); }
@@ -44,8 +43,10 @@ function setupPassport(app) {
 
   passport.serializeUser((user, cb) => cb(null, user.id));
   passport.deserializeUser(async (id, cb) => {
-    const user = await prisma.user.findUnique({ where: { id } });
-    cb(null, user);
+    try {
+      const user = await db.query.users.findFirst({ where: (t, { eq: e }) => e(t.id, id) });
+      cb(null, user);
+    } catch (err) { cb(err); }
   });
 
   app.use(passport.initialize());

@@ -1,33 +1,34 @@
-const { prisma } = require('../lib/prisma');
+const { eq, and, isNull } = require('drizzle-orm');
+const { db } = require('../lib/prisma');
+const { notifications } = require('../db/schema');
 
 async function listMine(req, res, next) {
   try {
-    const notifications = await prisma.notification.findMany({
-      where: { userId: req.user.id },
-      orderBy: { createdAt: 'desc' },
-      take: 50,
+    const rows = await db.query.notifications.findMany({
+      where: (t, { eq }) => eq(t.userId, req.user.id),
+      orderBy: (t, { desc }) => desc(t.createdAt),
+      limit: 50,
     });
-    const unread = notifications.filter((n) => !n.readAt).length;
-    res.json({ notifications, unread });
+    const unread = rows.filter((n) => !n.readAt).length;
+    res.json({ notifications: rows, unread });
   } catch (err) { next(err); }
 }
 
 async function markRead(req, res, next) {
   try {
     const id = Number(req.params.id);
-    const n = await prisma.notification.findUnique({ where: { id } });
+    const n = await db.query.notifications.findFirst({ where: (t, { eq }) => eq(t.id, id) });
     if (!n || n.userId !== req.user.id) return res.status(404).json({ message: 'Not found' });
-    await prisma.notification.update({ where: { id }, data: { readAt: new Date() } });
+    await db.update(notifications).set({ readAt: new Date() }).where(eq(notifications.id, id));
     res.json({ message: 'Marked read' });
   } catch (err) { next(err); }
 }
 
 async function markAllRead(req, res, next) {
   try {
-    await prisma.notification.updateMany({
-      where: { userId: req.user.id, readAt: null },
-      data: { readAt: new Date() },
-    });
+    await db.update(notifications)
+      .set({ readAt: new Date() })
+      .where(and(eq(notifications.userId, req.user.id), isNull(notifications.readAt)));
     res.json({ message: 'All marked read' });
   } catch (err) { next(err); }
 }

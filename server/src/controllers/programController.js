@@ -1,18 +1,19 @@
-const { prisma } = require('../lib/prisma');
+const { eq } = require('drizzle-orm');
+const { db } = require('../lib/prisma');
 
 async function listPrograms(_req, res, next) {
   try {
-    const programs = await prisma.program.findMany({
-      where: { active: true },
-      orderBy: { id: 'asc' },
+    const rows = await db.query.programs.findMany({
+      where: (t, { eq }) => eq(t.active, true),
+      orderBy: (t, { asc }) => asc(t.id),
     });
-    res.json(programs);
+    res.json(rows);
   } catch (err) { next(err); }
 }
 
 async function getProgram(req, res, next) {
   try {
-    const program = await prisma.program.findUnique({ where: { slug: req.params.slug } });
+    const program = await db.query.programs.findFirst({ where: (t, { eq }) => eq(t.slug, req.params.slug) });
     if (!program) return res.status(404).json({ message: 'Not found' });
     res.json(program);
   } catch (err) { next(err); }

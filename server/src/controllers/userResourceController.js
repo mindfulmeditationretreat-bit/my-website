@@ -1,7 +1,8 @@
-const { prisma } = require('../lib/prisma');
+const { eq, and } = require('drizzle-orm');
+const { db } = require('../lib/prisma');
+const { userResources } = require('../db/schema');
 const { notify } = require('../lib/notify');
 
-// Admin: assign a resource to a user
 async function assignResource(req, res, next) {
   try {
     const userId = Number(req.params.id);
@@ -9,25 +10,26 @@ async function assignResource(req, res, next) {
     if (!resourceId) return res.status(400).json({ message: 'resourceId required' });
 
     const [user, resource] = await Promise.all([
-      prisma.user.findUnique({ where: { id: userId } }),
-      prisma.resource.findUnique({ where: { id: Number(resourceId) } }),
+      db.query.users.findFirst({ where: (t, { eq }) => eq(t.id, userId) }),
+      db.query.resources.findFirst({ where: (t, { eq }) => eq(t.id, Number(resourceId)) }),
     ]);
     if (!user) return res.status(404).json({ message: 'User not found' });
     if (!resource) return res.status(404).json({ message: 'Resource not found' });
 
-    const existing = await prisma.userResource.findUnique({
-      where: { userId_resourceId: { userId, resourceId: Number(resourceId) } },
+    const existing = await db.query.userResources.findFirst({
+      where: (t, { eq, and }) => and(eq(t.userId, userId), eq(t.resourceId, Number(resourceId))),
     });
     if (existing) return res.status(409).json({ message: 'Already assigned' });
 
-    const assignment = await prisma.userResource.create({
-      data: {
-        userId,
-        resourceId: Number(resourceId),
-        assignedById: req.user.id,
-        note: note || null,
-      },
-      include: { resource: true },
+    const [{ id }] = await db.insert(userResources).values({
+      userId,
+      resourceId: Number(resourceId),
+      assignedById: req.user.id,
+      note: note || null,
+    }).$returningId();
+    const assignment = await db.query.userResources.findFirst({
+      where: (t, { eq }) => eq(t.id, id),
+      with: { resource: true },
     });
 
     await notify(userId, {
@@ -41,46 +43,39 @@ async function assignResource(req, res, next) {
   } catch (err) { next(err); }
 }
 
-// Admin: remove a resource assignment from a user
 async function unassignResource(req, res, next) {
   try {
     const userId = Number(req.params.id);
     const resourceId = Number(req.params.resourceId);
-    await prisma.userResource.deleteMany({ where: { userId, resourceId } });
+    await db.delete(userResources).where(and(eq(userResources.userId, userId), eq(userResources.resourceId, resourceId)));
     res.status(204).send();
   } catch (err) { next(err); }
 }
 
-// Admin: list resources assigned to a specific user
 async function listUserResources(req, res, next) {
   try {
     const userId = Number(req.params.id);
-    const assignments = await prisma.userResource.findMany({
-      where: { userId },
-      include: {
-        resource: {
-          select: { id: true, title: true, description: true, type: true, category: true, isPremium: true },
-        },
-        assignedBy: { select: { id: true, fullName: true } },
+    const assignments = await db.query.userResources.findMany({
+      where: (t, { eq }) => eq(t.userId, userId),
+      with: {
+        resource: { columns: { id: true, title: true, description: true, type: true, category: true, isPremium: true } },
+        assignedBy: { columns: { id: true, fullName: true } },
       },
-      orderBy: { createdAt: 'desc' },
+      orderBy: (t, { desc }) => desc(t.createdAt),
     });
     res.json(assignments);
   } catch (err) { next(err); }
 }
 
-// User: get their own assigned resources
 async function myAssignedResources(req, res, next) {
   try {
-    const assignments = await prisma.userResource.findMany({
-      where: { userId: req.user.id },
-      include: {
-        resource: {
-          select: { id: true, title: true, description: true, type: true, category: true, isPremium: true, url: true },
-        },
-        assignedBy: { select: { id: true, fullName: true } },
+    const assignments = await db.query.userResources.findMany({
+      where: (t, { eq }) => eq(t.userId, req.user.id),
+      with: {
+        resource: { columns: { id: true, title: true, description: true, type: true, category: true, isPremium: true, url: true } },
+        assignedBy: { columns: { id: true, fullName: true } },
       },
-      orderBy: { createdAt: 'desc' },
+      orderBy: (t, { desc }) => desc(t.createdAt),
     });
     res.json(assignments);
   } catch (err) { next(err); }

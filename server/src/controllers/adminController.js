@@ -1,28 +1,31 @@
 const bcrypt = require('bcryptjs');
-const { prisma } = require('../lib/prisma');
+const { eq, and, or, like, count, inArray } = require('drizzle-orm');
+const { db } = require('../lib/prisma');
+const { users, subscriptions, programs, notifications } = require('../db/schema');
 const { sendMail, templates } = require('../lib/mailer');
 const { notify } = require('../lib/notify');
 
 async function stats(_req, res, next) {
   try {
-    const [totalUsers, activeSubs, trialSubs, revenueAgg, instructorCount] = await Promise.all([
-      prisma.user.count({ where: { role: 'user' } }),
-      prisma.subscription.count({ where: { status: 'active' } }),
-      prisma.subscription.count({ where: { status: 'trialing' } }),
-      prisma.subscription.findMany({
-        where: { status: 'active' },
-        include: { program: { select: { priceCents: true } } },
-      }),
-      prisma.user.count({ where: { role: 'instructor' } }),
+    const [[{ totalUsers }], [{ activeSubs }], [{ trialSubs }], [{ instructorCount }]] = await Promise.all([
+      db.select({ totalUsers: count() }).from(users).where(eq(users.role, 'user')),
+      db.select({ activeSubs: count() }).from(subscriptions).where(eq(subscriptions.status, 'active')),
+      db.select({ trialSubs: count() }).from(subscriptions).where(eq(subscriptions.status, 'trialing')),
+      db.select({ instructorCount: count() }).from(users).where(eq(users.role, 'instructor')),
     ]);
-    const revenueCents = revenueAgg.reduce((acc, s) => acc + (s.program?.priceCents || 0), 0);
-    const conversion = (activeSubs + trialSubs) > 0
-      ? Math.round((activeSubs / (activeSubs + trialSubs)) * 100)
-      : 0;
+    const activeSubs_ = await db.query.subscriptions.findMany({
+      where: (t, { eq }) => eq(t.status, 'active'),
+      with: { program: { columns: { priceCents: true } } },
+    });
+    const revenueCents = activeSubs_.reduce((acc, s) => acc + (s.program?.priceCents || 0), 0);
+    const total = Number(activeSubs) + Number(trialSubs);
+    const conversion = total > 0 ? Math.round((Number(activeSubs) / total) * 100) : 0;
     res.json({
-      totalUsers, activeSubs, trialSubs,
+      totalUsers: Number(totalUsers),
+      activeSubs: Number(activeSubs),
+      trialSubs: Number(trialSubs),
       revenue: revenueCents / 100,
-      instructorCount,
+      instructorCount: Number(instructorCount),
       conversionRate: conversion,
     });
   } catch (err) { next(err); }
@@ -31,36 +34,40 @@ async function stats(_req, res, next) {
 async function listUsers(req, res, next) {
   try {
     const { role, q } = req.query;
-    const where = {};
-    if (role) where.role = role;
-    if (q) where.OR = [
-      { email: { contains: q } },
-      { fullName: { contains: q } },
-    ];
-    const users = await prisma.user.findMany({
-      where,
-      orderBy: { createdAt: 'desc' },
-      select: {
+    const rows = await db.query.users.findMany({
+      where: (t, { eq, or, like, and }) => {
+        const conditions = [];
+        if (role) conditions.push(eq(t.role, role));
+        if (q) conditions.push(or(like(t.email, `%${q}%`), like(t.fullName, `%${q}%`)));
+        return conditions.length === 0 ? undefined : conditions.length === 1 ? conditions[0] : and(...conditions);
+      },
+      orderBy: (t, { desc }) => desc(t.createdAt),
+      columns: {
         id: true, email: true, role: true, fullName: true,
         active: true, emailVerified: true, onboarded: true, createdAt: true,
       },
     });
-    res.json(users);
+    res.json(rows);
   } catch (err) { next(err); }
 }
 
 async function getUser(req, res, next) {
   try {
     const id = Number(req.params.id);
-    const user = await prisma.user.findUnique({
-      where: { id },
-      include: {
-        subscriptions: { include: { program: true, instructor: { select: { id: true, fullName: true } } } },
+    const user = await db.query.users.findFirst({
+      where: (t, { eq }) => eq(t.id, id),
+      with: {
+        subscriptions: {
+          with: {
+            program: true,
+            instructor: { columns: { id: true, fullName: true } },
+          },
+        },
       },
     });
     if (!user) return res.status(404).json({ message: 'Not found' });
-    delete user.passwordHash;
-    res.json(user);
+    const { passwordHash, ...safeUser } = user;
+    res.json(safeUser);
   } catch (err) { next(err); }
 }
 
@@ -68,7 +75,7 @@ async function createUser(req, res, next) {
   try {
     const { email, fullName, role, age, gender, wellnessGoals, travelCountry, expertise, bio, availability } = req.body;
     if (!email || !role) return res.status(400).json({ message: 'email and role required' });
-    const existing = await prisma.user.findUnique({ where: { email } });
+    const existing = await db.query.users.findFirst({ where: (t, { eq }) => eq(t.email, email) });
     if (existing) return res.status(409).json({ message: 'Email already exists' });
 
     const ageNum = age ? Number(age) : null;
@@ -83,21 +90,21 @@ async function createUser(req, res, next) {
 
     const tempPassword = Math.random().toString(36).slice(2, 10) + 'A1!';
     const passwordHash = await bcrypt.hash(tempPassword, 10);
-    const user = await prisma.user.create({
-      data: {
-        email, fullName: fullName || null, role,
-        passwordHash,
-        age: ageNum,
-        gender: gender || null,
-        wellnessGoals: goals,
-        travelCountry: travelCountry || null,
-        expertise: expertise || null,
-        bio: bio || null,
-        availability: availability || null,
-        onboarded: userOnboarded,
-        emailVerified: true,
-      },
-    });
+    const [{ id }] = await db.insert(users).values({
+      email, fullName: fullName || null, role,
+      passwordHash,
+      age: ageNum,
+      gender: gender || null,
+      wellnessGoals: goals,
+      travelCountry: travelCountry || null,
+      expertise: expertise || null,
+      bio: bio || null,
+      availability: availability || null,
+      onboarded: userOnboarded,
+      emailVerified: true,
+    }).$returningId();
+    const user = await db.query.users.findFirst({ where: (t, { eq }) => eq(t.id, id) });
+
     let emailSent = false;
     let emailError = null;
     try {
@@ -115,7 +122,7 @@ async function updateUser(req, res, next) {
   try {
     const id = Number(req.params.id);
     const { fullName, role, active, travelCountry, expertise, bio, availability } = req.body;
-    const data = {};
+    const data = { updatedAt: new Date() };
     if (fullName !== undefined) data.fullName = fullName;
     if (role !== undefined) data.role = role;
     if (active !== undefined) data.active = !!active;
@@ -123,7 +130,7 @@ async function updateUser(req, res, next) {
     if (expertise !== undefined) data.expertise = expertise;
     if (bio !== undefined) data.bio = bio;
     if (availability !== undefined) data.availability = availability;
-    await prisma.user.update({ where: { id }, data });
+    await db.update(users).set(data).where(eq(users.id, id));
     res.json({ message: 'Updated' });
   } catch (err) { next(err); }
 }
@@ -131,7 +138,7 @@ async function updateUser(req, res, next) {
 async function deleteUser(req, res, next) {
   try {
     const id = Number(req.params.id);
-    await prisma.user.delete({ where: { id } });
+    await db.delete(users).where(eq(users.id, id));
     res.status(204).send();
   } catch (err) { next(err); }
 }
@@ -140,17 +147,18 @@ async function assignInstructor(req, res, next) {
   try {
     const subId = Number(req.params.id);
     const { instructorId } = req.body;
-    const sub = await prisma.subscription.findUnique({ where: { id: subId } });
+    const sub = await db.query.subscriptions.findFirst({ where: (t, { eq }) => eq(t.id, subId) });
     if (!sub) return res.status(404).json({ message: 'Subscription not found' });
 
     if (instructorId) {
-      const instr = await prisma.user.findFirst({ where: { id: Number(instructorId), role: 'instructor' } });
+      const instr = await db.query.users.findFirst({
+        where: (t, { eq, and }) => and(eq(t.id, Number(instructorId)), eq(t.role, 'instructor')),
+      });
       if (!instr) return res.status(400).json({ message: 'Instructor not found' });
     }
-    await prisma.subscription.update({
-      where: { id: subId },
-      data: { instructorId: instructorId ? Number(instructorId) : null },
-    });
+    await db.update(subscriptions)
+      .set({ instructorId: instructorId ? Number(instructorId) : null, updatedAt: new Date() })
+      .where(eq(subscriptions.id, subId));
     if (instructorId) {
       await notify(sub.userId, {
         type: 'instructor_assigned',
@@ -165,12 +173,12 @@ async function assignInstructor(req, res, next) {
 
 async function listSubscriptions(_req, res, next) {
   try {
-    const subs = await prisma.subscription.findMany({
-      orderBy: { createdAt: 'desc' },
-      include: {
-        user: { select: { id: true, email: true, fullName: true } },
-        program: { select: { id: true, name: true, slug: true, priceCents: true } },
-        instructor: { select: { id: true, fullName: true } },
+    const subs = await db.query.subscriptions.findMany({
+      orderBy: (t, { desc }) => desc(t.createdAt),
+      with: {
+        user:       { columns: { id: true, email: true, fullName: true } },
+        program:    { columns: { id: true, name: true, slug: true, priceCents: true } },
+        instructor: { columns: { id: true, fullName: true } },
       },
     });
     res.json(subs);
@@ -179,8 +187,8 @@ async function listSubscriptions(_req, res, next) {
 
 async function listPrograms(_req, res, next) {
   try {
-    const programs = await prisma.program.findMany({ orderBy: { id: 'asc' } });
-    res.json(programs);
+    const rows = await db.query.programs.findMany({ orderBy: (t, { asc }) => asc(t.id) });
+    res.json(rows);
   } catch (err) { next(err); }
 }
 
@@ -197,7 +205,7 @@ async function updateProgram(req, res, next) {
     if (trialDays !== undefined) data.trialDays = Number(trialDays);
     if (active !== undefined) data.active = !!active;
     if (category !== undefined) data.category = category;
-    await prisma.program.update({ where: { id }, data });
+    await db.update(programs).set(data).where(eq(programs.id, id));
     res.json({ message: 'Updated' });
   } catch (err) { next(err); }
 }
@@ -208,30 +216,30 @@ async function assignProgram(req, res, next) {
     const { programId, instructorId } = req.body;
     if (!programId) return res.status(400).json({ message: 'programId required' });
 
-    const user = await prisma.user.findUnique({ where: { id: userId } });
+    const user = await db.query.users.findFirst({ where: (t, { eq }) => eq(t.id, userId) });
     if (!user) return res.status(404).json({ message: 'User not found' });
 
-    const program = await prisma.program.findUnique({ where: { id: Number(programId) } });
+    const program = await db.query.programs.findFirst({ where: (t, { eq }) => eq(t.id, Number(programId)) });
     if (!program) return res.status(404).json({ message: 'Program not found' });
 
-    const existing = await prisma.subscription.findFirst({
-      where: { userId, programId: Number(programId) },
+    const existing = await db.query.subscriptions.findFirst({
+      where: (t, { eq, and }) => and(eq(t.userId, userId), eq(t.programId, Number(programId))),
     });
     if (existing) return res.status(409).json({ message: 'User already enrolled in this program' });
 
     const now = new Date();
     const trialEndsAt = new Date(now.getTime() + program.trialDays * 24 * 60 * 60 * 1000);
-    const sub = await prisma.subscription.create({
-      data: {
-        userId,
-        programId: Number(programId),
-        instructorId: instructorId ? Number(instructorId) : null,
-        status: 'trialing',
-        trialStartedAt: now,
-        trialEndsAt,
-        currentPeriodEnd: trialEndsAt,
-      },
-    });
+    const [{ id }] = await db.insert(subscriptions).values({
+      userId,
+      programId: Number(programId),
+      instructorId: instructorId ? Number(instructorId) : null,
+      status: 'trialing',
+      trialStartedAt: now,
+      trialEndsAt,
+      currentPeriodEnd: trialEndsAt,
+    }).$returningId();
+    const sub = await db.query.subscriptions.findFirst({ where: (t, { eq }) => eq(t.id, id) });
+
     await notify(userId, {
       type: 'subscription_started',
       title: `Enrolled in ${program.name}`,
@@ -246,17 +254,29 @@ async function broadcast(req, res, next) {
   try {
     const { audience, title, body, email } = req.body;
     if (!title || !body) return res.status(400).json({ message: 'title and body required' });
-    const where = {};
-    if (audience === 'users') where.role = 'user';
-    if (audience === 'instructors') where.role = 'instructor';
+
+    let recipients;
     if (audience === 'trial') {
-      where.subscriptions = { some: { status: 'trialing' } };
-    }
-    const recipients = await prisma.user.findMany({ where, select: { id: true, email: true } });
-    for (const r of recipients) {
-      await prisma.notification.create({
-        data: { userId: r.id, type: 'broadcast', title, body },
+      const trialingRows = await db.query.subscriptions.findMany({
+        where: (t, { eq }) => eq(t.status, 'trialing'),
+        columns: { userId: true },
       });
+      const ids = [...new Set(trialingRows.map((r) => r.userId))];
+      recipients = ids.length
+        ? await db.query.users.findMany({
+            where: (t, { inArray }) => inArray(t.id, ids),
+            columns: { id: true, email: true },
+          })
+        : [];
+    } else {
+      recipients = await db.query.users.findMany({
+        where: (t, { eq }) => audience === 'users' ? eq(t.role, 'user') : audience === 'instructors' ? eq(t.role, 'instructor') : undefined,
+        columns: { id: true, email: true },
+      });
+    }
+
+    for (const r of recipients) {
+      await db.insert(notifications).values({ userId: r.id, type: 'broadcast', title, body });
       if (email) {
         try { await sendMail({ to: r.email, subject: title, title, html: `<p>${body}</p>` }); }
         catch (e) { console.error('[broadcast] email failed', e.message); }

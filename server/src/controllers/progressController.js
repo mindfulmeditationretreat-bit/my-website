@@ -1,9 +1,10 @@
-const { prisma } = require('../lib/prisma');
+const { eq, and } = require('drizzle-orm');
+const { db } = require('../lib/prisma');
+const { progressEntries } = require('../db/schema');
 
 const TYPES = new Set(['weight', 'meditation', 'mood']);
 
 function calcMeditationStreak(entries) {
-  // entries are ordered desc by recordedAt; streak = consecutive distinct calendar days ending today/yesterday
   const days = [...new Set(
     entries
       .filter((e) => e.type === 'meditation')
@@ -31,14 +32,13 @@ async function addEntry(req, res, next) {
   try {
     const { type, value, note } = req.body;
     if (!TYPES.has(type)) return res.status(400).json({ message: 'Invalid type' });
-    const entry = await prisma.progressEntry.create({
-      data: {
-        userId: req.user.id,
-        type,
-        value: value != null ? Number(value) : null,
-        note: note || null,
-      },
-    });
+    const [{ id }] = await db.insert(progressEntries).values({
+      userId: req.user.id,
+      type,
+      value: value != null ? Number(value) : null,
+      note: note || null,
+    }).$returningId();
+    const entry = await db.query.progressEntries.findFirst({ where: (t, { eq }) => eq(t.id, id) });
     res.status(201).json(entry);
   } catch (err) { next(err); }
 }
@@ -46,17 +46,22 @@ async function addEntry(req, res, next) {
 async function listEntries(req, res, next) {
   try {
     const { type } = req.query;
-    const where = { userId: req.user.id };
-    if (type && TYPES.has(type)) where.type = type;
-    const entries = await prisma.progressEntry.findMany({
-      where,
-      orderBy: { recordedAt: 'desc' },
-      take: 200,
+    const entries = await db.query.progressEntries.findMany({
+      where: (t, { eq, and }) => {
+        const base = eq(t.userId, req.user.id);
+        if (type && TYPES.has(type)) return and(base, eq(t.type, type));
+        return base;
+      },
+      orderBy: (t, { desc }) => desc(t.recordedAt),
+      limit: 200,
     });
 
-    // Always include streak alongside the entries
     const allMeditation = type && type !== 'meditation'
-      ? await prisma.progressEntry.findMany({ where: { userId: req.user.id, type: 'meditation' }, orderBy: { recordedAt: 'desc' }, take: 200 })
+      ? await db.query.progressEntries.findMany({
+          where: (t, { eq, and }) => and(eq(t.userId, req.user.id), eq(t.type, 'meditation')),
+          orderBy: (t, { desc }) => desc(t.recordedAt),
+          limit: 200,
+        })
       : entries;
     const meditationStreak = calcMeditationStreak(allMeditation);
 

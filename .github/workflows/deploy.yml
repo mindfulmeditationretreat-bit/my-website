@@ -67,9 +67,23 @@ jobs:
               /tmp/production.env \
               ${{ secrets.CPANEL_USERNAME }}@${{ secrets.CPANEL_HOST }}:~/api/.env
 
-      - name: Extract and deploy on server
+      - name: Extract files and install dependencies
         run: |
           ssh -i ~/.ssh/deploy_key \
               -p ${{ secrets.CPANEL_SSH_PORT }} \
               ${{ secrets.CPANEL_USERNAME }}@${{ secrets.CPANEL_HOST }} \
-              'export PATH=/opt/alt/alt-nodejs22/root/usr/bin:$HOME/npm-global/bin:$PATH && cd ~ && tar -xzf api.tar.gz -C ~/api && rm api.tar.gz && cd ~/api && npm install --omit=dev && npx prisma generate && npx prisma migrate deploy && (npx prisma db seed || echo "Seed skipped") && (pm2 restart mindfull-api --update-env 2>/dev/null || pm2 start ecosystem.config.js --env production) && pm2 save --force && echo "Deployment complete!"'
+              'export PATH=/opt/alt/alt-nodejs22/root/usr/bin:$HOME/npm-global/bin:$PATH && cd ~ && tar -xzf api.tar.gz -C ~/api && rm api.tar.gz && cd ~/api && npm install --omit=dev && echo "Install done"'
+
+      - name: Run SQL migrations
+        run: |
+          ssh -i ~/.ssh/deploy_key \
+              -p ${{ secrets.CPANEL_SSH_PORT }} \
+              ${{ secrets.CPANEL_USERNAME }}@${{ secrets.CPANEL_HOST }} \
+              'export PATH=/opt/alt/alt-nodejs22/root/usr/bin:$HOME/npm-global/bin:$PATH && cd ~/api && bash prisma/migrate.sh'
+
+      - name: Start app with PM2
+        run: |
+          ssh -i ~/.ssh/deploy_key \
+              -p ${{ secrets.CPANEL_SSH_PORT }} \
+              ${{ secrets.CPANEL_USERNAME }}@${{ secrets.CPANEL_HOST }} \
+              'export PATH=/opt/alt/alt-nodejs22/root/usr/bin:$HOME/npm-global/bin:$PATH && cd ~/api && (pm2 restart mindfull-api --update-env 2>/dev/null || pm2 start ecosystem.config.js --env production) && pm2 save --force && echo "App started!"'

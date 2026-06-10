@@ -1,6 +1,8 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const { prisma } = require('../lib/prisma');
+const { eq } = require('drizzle-orm');
+const { db } = require('../lib/prisma');
+const { users, verificationTokens, passwordResetTokens } = require('../db/schema');
 const { randomToken, hoursFromNow, minutesFromNow } = require('../lib/tokens');
 const { sendMail, templates } = require('../lib/mailer');
 
@@ -34,13 +36,9 @@ function publicUser(user) {
 const LINK_TTL_MINUTES = 10;
 
 async function sendVerificationEmail(user) {
-  // Invalidate any previous links so only the newest one works
-  await prisma.verificationToken.deleteMany({ where: { userId: user.id } });
-
+  await db.delete(verificationTokens).where(eq(verificationTokens.userId, user.id));
   const token = randomToken();
-  await prisma.verificationToken.create({
-    data: { userId: user.id, token, expiresAt: minutesFromNow(LINK_TTL_MINUTES) },
-  });
+  await db.insert(verificationTokens).values({ userId: user.id, token, expiresAt: minutesFromNow(LINK_TTL_MINUTES) });
   const link = `${process.env.CLIENT_ORIGIN}/verify-email/${token}`;
   const tpl = templates.verifyEmail(link);
   await sendMail({ to: user.email, ...tpl });
@@ -52,16 +50,14 @@ async function signup(req, res, next) {
     if (!email || !password || password.length < 8) {
       return res.status(400).json({ message: 'Email and password (min 8 chars) required' });
     }
-    const existing = await prisma.user.findUnique({ where: { email } });
+    const existing = await db.query.users.findFirst({ where: (t, { eq }) => eq(t.email, email) });
     if (existing) return res.status(409).json({ message: 'Email already registered' });
 
     const passwordHash = await bcrypt.hash(password, 10);
-    const user = await prisma.user.create({
-      data: { email, passwordHash, role: 'user' },
-    });
+    const [{ id }] = await db.insert(users).values({ email, passwordHash, role: 'user' }).$returningId();
+    const user = await db.query.users.findFirst({ where: (t, { eq }) => eq(t.id, id) });
 
     try {
-      // Only the verification email at signup — the welcome email is sent after verifying.
       await sendVerificationEmail(user);
     } catch (e) { console.error('[signup] verification email failed', e.message); }
 
@@ -75,7 +71,7 @@ async function login(req, res, next) {
     const { email, password } = req.body;
     if (!email || !password) return res.status(400).json({ message: 'Email and password required' });
 
-    const user = await prisma.user.findUnique({ where: { email } });
+    const user = await db.query.users.findFirst({ where: (t, { eq }) => eq(t.email, email) });
     if (!user) return res.status(401).json({ message: 'Invalid credentials' });
     if (!user.active) return res.status(403).json({ message: 'Account deactivated' });
 
@@ -109,12 +105,10 @@ async function forgotPassword(req, res, next) {
   try {
     const { email } = req.body;
     if (!email) return res.status(400).json({ message: 'Email required' });
-    const user = await prisma.user.findUnique({ where: { email } });
+    const user = await db.query.users.findFirst({ where: (t, { eq }) => eq(t.email, email) });
     if (user) {
       const token = randomToken();
-      await prisma.passwordResetToken.create({
-        data: { userId: user.id, token, expiresAt: hoursFromNow(1) },
-      });
+      await db.insert(passwordResetTokens).values({ userId: user.id, token, expiresAt: hoursFromNow(1) });
       const link = `${process.env.CLIENT_ORIGIN}/reset-password/${token}`;
       const tpl = templates.passwordReset(link);
       try { await sendMail({ to: user.email, ...tpl }); }
@@ -130,13 +124,13 @@ async function resetPassword(req, res, next) {
     if (!token || !password || password.length < 8) {
       return res.status(400).json({ message: 'Token and password (min 8 chars) required' });
     }
-    const record = await prisma.passwordResetToken.findUnique({ where: { token } });
+    const record = await db.query.passwordResetTokens.findFirst({ where: (t, { eq }) => eq(t.token, token) });
     if (!record || record.usedAt || record.expiresAt < new Date()) {
       return res.status(400).json({ message: 'Invalid or expired token' });
     }
     const passwordHash = await bcrypt.hash(password, 10);
-    await prisma.user.update({ where: { id: record.userId }, data: { passwordHash } });
-    await prisma.passwordResetToken.update({ where: { id: record.id }, data: { usedAt: new Date() } });
+    await db.update(users).set({ passwordHash, updatedAt: new Date() }).where(eq(users.id, record.userId));
+    await db.update(passwordResetTokens).set({ usedAt: new Date() }).where(eq(passwordResetTokens.id, record.id));
     res.json({ message: 'Password updated' });
   } catch (err) { next(err); }
 }
@@ -144,14 +138,14 @@ async function resetPassword(req, res, next) {
 async function verifyEmail(req, res, next) {
   try {
     const { token } = req.body;
-    const record = await prisma.verificationToken.findUnique({ where: { token } });
+    const record = await db.query.verificationTokens.findFirst({ where: (t, { eq }) => eq(t.token, token) });
     if (!record || record.usedAt || record.expiresAt < new Date()) {
       return res.status(400).json({ message: 'Invalid or expired token' });
     }
-    const user = await prisma.user.update({ where: { id: record.userId }, data: { emailVerified: true } });
-    await prisma.verificationToken.update({ where: { id: record.id }, data: { usedAt: new Date() } });
+    await db.update(users).set({ emailVerified: true, updatedAt: new Date() }).where(eq(users.id, record.userId));
+    await db.update(verificationTokens).set({ usedAt: new Date() }).where(eq(verificationTokens.id, record.id));
+    const user = await db.query.users.findFirst({ where: (t, { eq }) => eq(t.id, record.userId) });
 
-    // Now that the email is confirmed, send the welcome email.
     try {
       const welcome = templates.welcome(user.fullName);
       await sendMail({ to: user.email, ...welcome });
@@ -163,7 +157,7 @@ async function verifyEmail(req, res, next) {
 
 async function resendVerification(req, res, next) {
   try {
-    const user = await prisma.user.findUnique({ where: { id: req.user.id } });
+    const user = await db.query.users.findFirst({ where: (t, { eq }) => eq(t.id, req.user.id) });
     if (!user) return res.status(404).json({ message: 'Not found' });
     if (user.emailVerified) return res.json({ message: 'Already verified' });
     await sendVerificationEmail(user);

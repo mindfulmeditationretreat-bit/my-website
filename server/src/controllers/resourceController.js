@@ -1,4 +1,6 @@
-const { prisma } = require('../lib/prisma');
+const { eq, and, inArray } = require('drizzle-orm');
+const { db } = require('../lib/prisma');
+const { resources, subscriptions } = require('../db/schema');
 const { deleteFile } = require('../middleware/upload');
 const { userHasActiveAccess } = require('./subscriptionController');
 const { notify } = require('../lib/notify');
@@ -9,32 +11,33 @@ const CATEGORIES = new Set(['diet', 'meditation', 'counseling', 'general']);
 async function listResources(req, res, next) {
   try {
     const { category, type, premium, programId } = req.query;
-    const where = {};
-    if (category && CATEGORIES.has(category)) where.category = category;
-    if (type && TYPES.has(type)) where.type = type;
-    if (premium === 'true') where.isPremium = true;
-    if (premium === 'false') where.isPremium = false;
-    if (programId) where.programId = Number(programId);
-
-    const resources = await prisma.resource.findMany({
-      where,
-      orderBy: { createdAt: 'desc' },
-      select: {
+    const rows = await db.query.resources.findMany({
+      where: (t, { eq, and }) => {
+        const conds = [];
+        if (category && CATEGORIES.has(category)) conds.push(eq(t.category, category));
+        if (type && TYPES.has(type)) conds.push(eq(t.type, type));
+        if (premium === 'true') conds.push(eq(t.isPremium, true));
+        if (premium === 'false') conds.push(eq(t.isPremium, false));
+        if (programId) conds.push(eq(t.programId, Number(programId)));
+        return conds.length === 0 ? undefined : conds.length === 1 ? conds[0] : and(...conds);
+      },
+      orderBy: (t, { desc }) => desc(t.createdAt),
+      columns: {
         id: true, title: true, description: true, type: true, category: true,
         isPremium: true, programId: true, createdAt: true,
-        program: { select: { id: true, name: true } },
       },
+      with: { program: { columns: { id: true, name: true } } },
     });
-    res.json(resources);
+    res.json(rows);
   } catch (err) { next(err); }
 }
 
 async function getResource(req, res, next) {
   try {
     const id = Number(req.params.id);
-    const resource = await prisma.resource.findUnique({
-      where: { id },
-      include: { program: { select: { id: true, name: true } } },
+    const resource = await db.query.resources.findFirst({
+      where: (t, { eq }) => eq(t.id, id),
+      with: { program: { columns: { id: true, name: true } } },
     });
     if (!resource) return res.status(404).json({ message: 'Not found' });
 
@@ -57,32 +60,36 @@ async function createResource(req, res, next) {
     if (!CATEGORIES.has(category)) return res.status(400).json({ message: 'invalid category' });
 
     let url = externalUrl || null;
-    if (req.file) {
-      url = req.file.path || `/uploads/${req.file.filename}`;
-    }
+    if (req.file) url = req.file.path || `/uploads/${req.file.filename}`;
 
-    const resource = await prisma.resource.create({
-      data: {
-        title,
-        description: description || null,
-        type,
-        category,
-        body: body || null,
-        url,
-        isPremium: isPremium === 'true' || isPremium === true,
-        uploadedBy: req.user.id,
-        programId: programId ? Number(programId) : null,
-      },
-    });
+    const [{ id }] = await db.insert(resources).values({
+      title,
+      description: description || null,
+      type,
+      category,
+      body: body || null,
+      url,
+      isPremium: isPremium === 'true' || isPremium === true,
+      uploadedBy: req.user.id,
+      programId: programId ? Number(programId) : null,
+    }).$returningId();
+    const resource = await db.query.resources.findFirst({ where: (t, { eq }) => eq(t.id, id) });
 
-    // Notify subscribers in this category (fire-and-forget)
+    // Notify subscribers (fire-and-forget)
     const programCategory = category === 'general' ? null : category;
-    const whereProgram = programCategory ? { category: programCategory } : {};
-    prisma.subscription.findMany({
-      where: { status: { in: ['trialing', 'active'] }, program: whereProgram },
-      select: { userId: true },
+    db.query.subscriptions.findMany({
+      where: (t, { inArray, eq, and }) => {
+        const base = inArray(t.status, ['trialing', 'active']);
+        if (!programCategory) return base;
+        return base; // programId filter handled below via join
+      },
+      with: { program: { columns: { category: true } } },
+      columns: { userId: true },
     }).then((subs) => {
-      const ids = [...new Set(subs.map((s) => s.userId))];
+      const filtered = programCategory
+        ? subs.filter((s) => s.program?.category === programCategory)
+        : subs;
+      const ids = [...new Set(filtered.map((s) => s.userId))];
       ids.forEach((userId) => {
         notify(userId, {
           type: 'new_resource',
@@ -100,13 +107,13 @@ async function createResource(req, res, next) {
 async function deleteResource(req, res, next) {
   try {
     const id = Number(req.params.id);
-    const resource = await prisma.resource.findUnique({ where: { id } });
+    const resource = await db.query.resources.findFirst({ where: (t, { eq }) => eq(t.id, id) });
     if (!resource) return res.status(404).json({ message: 'Not found' });
     if (req.user.role !== 'admin' && resource.uploadedBy !== req.user.id) {
       return res.status(403).json({ message: 'Forbidden' });
     }
     await deleteFile(resource.url);
-    await prisma.resource.delete({ where: { id } });
+    await db.delete(resources).where(eq(resources.id, id));
     res.status(204).send();
   } catch (err) { next(err); }
 }

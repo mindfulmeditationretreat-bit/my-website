@@ -1,19 +1,18 @@
 const cron = require('node-cron');
-const { prisma } = require('./prisma');
+const { db } = require('./prisma');
+const { subscriptions, notifications } = require('../db/schema');
+const { eq, and, lte, gt } = require('drizzle-orm');
 const { sendMail, templates } = require('./mailer');
 const { notify } = require('./notify');
 
 async function expireTrials() {
   const now = new Date();
-  const expiring = await prisma.subscription.findMany({
-    where: { status: 'trialing', trialEndsAt: { lte: now } },
-    include: { program: true, user: true },
+  const expiring = await db.query.subscriptions.findMany({
+    where: (t, { and: a, eq: e, lte: l }) => a(e(t.status, 'trialing'), l(t.trialEndsAt, now)),
+    with: { program: true, user: true },
   });
   for (const sub of expiring) {
-    await prisma.subscription.update({
-      where: { id: sub.id },
-      data: { status: 'expired' },
-    });
+    await db.update(subscriptions).set({ status: 'expired' }).where(eq(subscriptions.id, sub.id));
     await notify(sub.userId, {
       type: 'trial_expired',
       title: `Your ${sub.program.name} trial has ended`,
@@ -28,31 +27,27 @@ async function expireTrials() {
 async function notifyEndingTrials() {
   const threshold = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000);
   const now = new Date();
-  const ending = await prisma.subscription.findMany({
-    where: {
-      status: 'trialing',
-      trialEndsAt: { gt: now, lte: threshold },
-      trialEndingNotified: false,
-    },
-    include: { program: true, user: true },
+  const ending = await db.query.subscriptions.findMany({
+    where: (t, { and: a, eq: e, gt: g, lte: l }) => a(
+      e(t.status, 'trialing'),
+      g(t.trialEndsAt, now),
+      l(t.trialEndsAt, threshold),
+      e(t.trialEndingNotified, false)
+    ),
+    with: { program: true, user: true },
   });
   for (const sub of ending) {
     const daysLeft = Math.max(1, Math.ceil((sub.trialEndsAt - now) / (1000 * 60 * 60 * 24)));
     const tpl = templates.trialEnding(sub.program.name, daysLeft);
     if (sub.user?.email) await sendMail({ to: sub.user.email, ...tpl });
-    await prisma.notification.create({
-      data: {
-        userId: sub.userId,
-        type: 'trial_ending',
-        title: tpl.subject,
-        body: `Your ${sub.program.name} trial ends in ${daysLeft} day(s).`,
-        link: '/dashboard/programs',
-      },
+    await db.insert(notifications).values({
+      userId: sub.userId,
+      type: 'trial_ending',
+      title: tpl.subject,
+      body: `Your ${sub.program.name} trial ends in ${daysLeft} day(s).`,
+      link: '/dashboard/programs',
     });
-    await prisma.subscription.update({
-      where: { id: sub.id },
-      data: { trialEndingNotified: true },
-    });
+    await db.update(subscriptions).set({ trialEndingNotified: true }).where(eq(subscriptions.id, sub.id));
   }
   if (ending.length) console.log(`[cron] notified ${ending.length} ending trial(s)`);
 }

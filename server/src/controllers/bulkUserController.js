@@ -1,8 +1,9 @@
 const bcrypt = require('bcryptjs');
-const { prisma } = require('../lib/prisma');
+const { eq } = require('drizzle-orm');
+const { db } = require('../lib/prisma');
+const { users, subscriptions } = require('../db/schema');
 const { sendMail } = require('../lib/mailer');
 
-// Simple CSV parser — handles quoted fields containing commas
 function parseCSV(text) {
   const lines = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim().split('\n');
   if (lines.length < 2) return [];
@@ -42,9 +43,7 @@ function parseCSV(text) {
   return rows;
 }
 
-// Map fuzzy column names coming from the CSV
 function normalize(row) {
-  // Try multiple possible header variants
   const get = (...keys) => {
     for (const k of keys) {
       if (row[k] !== undefined && row[k] !== '') return row[k];
@@ -52,12 +51,12 @@ function normalize(row) {
     return '';
   };
   return {
-    email:          get('email', 'e_mail', 'email_address'),
-    fullName:       get('full_name', 'fullname', 'name'),
-    address:        get('address'),
-    phone:          get('phone', 'phone_number', 'mobile'),
-    program:        get('interested_program', 'program', 'interested_programs'),
-    travelCountry:  get('interested_country_to_travel', 'travel_country', 'country_to_travel', 'interested_country'),
+    email:         get('email', 'e_mail', 'email_address'),
+    fullName:      get('full_name', 'fullname', 'name'),
+    address:       get('address'),
+    phone:         get('phone', 'phone_number', 'mobile'),
+    program:       get('interested_program', 'program', 'interested_programs'),
+    travelCountry: get('interested_country_to_travel', 'travel_country', 'country_to_travel', 'interested_country'),
   };
 }
 
@@ -69,8 +68,7 @@ async function bulkCreateUsers(req, res, next) {
     const rows = parseCSV(text);
     if (!rows.length) return res.status(400).json({ message: 'CSV has no data rows' });
 
-    // Load all programs once for matching
-    const programs = await prisma.program.findMany({ where: { active: true } });
+    const allPrograms = await db.query.programs.findMany({ where: (t, { eq }) => eq(t.active, true) });
 
     const results = [];
 
@@ -82,8 +80,7 @@ async function bulkCreateUsers(req, res, next) {
         continue;
       }
 
-      // Skip duplicates
-      const existing = await prisma.user.findUnique({ where: { email } });
+      const existing = await db.query.users.findFirst({ where: (t, { eq }) => eq(t.email, email) });
       if (existing) {
         results.push({ email, status: 'skipped', reason: 'Email already exists' });
         continue;
@@ -92,43 +89,38 @@ async function bulkCreateUsers(req, res, next) {
       const tempPassword = Math.random().toString(36).slice(2, 10) + 'A1!';
       const passwordHash = await bcrypt.hash(tempPassword, 10);
 
-      const user = await prisma.user.create({
-        data: {
-          email,
-          passwordHash,
-          fullName:     fullName || null,
-          address:      address  || null,
-          phone:        phone    || null,
-          travelCountry: travelCountry || null,
-          role:         'user',
-          onboarded:    !!fullName,
-          emailVerified: true,
-        },
-      });
+      const [{ id }] = await db.insert(users).values({
+        email,
+        passwordHash,
+        fullName:     fullName || null,
+        address:      address  || null,
+        phone:        phone    || null,
+        travelCountry: travelCountry || null,
+        role:         'user',
+        onboarded:    !!fullName,
+        emailVerified: true,
+      }).$returningId();
+      const user = await db.query.users.findFirst({ where: (t, { eq }) => eq(t.id, id) });
 
-      // Try to match and enrol in a program
       let enrolledProgram = null;
       if (programName) {
-        const match = programs.find((p) =>
+        const match = allPrograms.find((p) =>
           p.name.toLowerCase().includes(programName.toLowerCase()) ||
           programName.toLowerCase().includes(p.name.toLowerCase())
         );
         if (match) {
           const trialEnd = new Date();
           trialEnd.setDate(trialEnd.getDate() + match.trialDays);
-          await prisma.subscription.create({
-            data: {
-              userId:      user.id,
-              programId:   match.id,
-              status:      'trialing',
-              trialEndsAt: trialEnd,
-            },
+          await db.insert(subscriptions).values({
+            userId:      user.id,
+            programId:   match.id,
+            status:      'trialing',
+            trialEndsAt: trialEnd,
           });
           enrolledProgram = match.name;
         }
       }
 
-      // Send welcome email
       let emailSent = false;
       try {
         const mailResult = await sendMail({

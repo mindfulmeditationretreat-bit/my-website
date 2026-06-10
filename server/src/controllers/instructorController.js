@@ -1,21 +1,23 @@
-const { prisma } = require('../lib/prisma');
+const { eq, and } = require('drizzle-orm');
+const { db } = require('../lib/prisma');
+const { instructorNotes, progressEntries } = require('../db/schema');
 
 async function listInstructors(_req, res, next) {
   try {
-    const instructors = await prisma.user.findMany({
-      where: { role: 'instructor', active: true },
-      select: { id: true, fullName: true, photoUrl: true, expertise: true, bio: true, availability: true },
+    const rows = await db.query.users.findMany({
+      where: (t, { eq, and }) => and(eq(t.role, 'instructor'), eq(t.active, true)),
+      columns: { id: true, fullName: true, photoUrl: true, expertise: true, bio: true, availability: true },
     });
-    res.json(instructors);
+    res.json(rows);
   } catch (err) { next(err); }
 }
 
 async function getInstructor(req, res, next) {
   try {
     const id = Number(req.params.id);
-    const instructor = await prisma.user.findFirst({
-      where: { id, role: 'instructor' },
-      select: { id: true, fullName: true, photoUrl: true, expertise: true, bio: true, availability: true },
+    const instructor = await db.query.users.findFirst({
+      where: (t, { eq, and }) => and(eq(t.id, id), eq(t.role, 'instructor')),
+      columns: { id: true, fullName: true, photoUrl: true, expertise: true, bio: true, availability: true },
     });
     if (!instructor) return res.status(404).json({ message: 'Not found' });
     res.json(instructor);
@@ -24,13 +26,13 @@ async function getInstructor(req, res, next) {
 
 async function myAssignedUsers(req, res, next) {
   try {
-    const subs = await prisma.subscription.findMany({
-      where: { instructorId: req.user.id },
-      include: {
-        user: { select: { id: true, email: true, fullName: true, photoUrl: true, wellnessGoals: true } },
-        program: { select: { id: true, name: true, slug: true } },
+    const subs = await db.query.subscriptions.findMany({
+      where: (t, { eq }) => eq(t.instructorId, req.user.id),
+      with: {
+        user:    { columns: { id: true, email: true, fullName: true, photoUrl: true, wellnessGoals: true } },
+        program: { columns: { id: true, name: true, slug: true } },
       },
-      orderBy: { createdAt: 'desc' },
+      orderBy: (t, { desc }) => desc(t.createdAt),
     });
     res.json(subs);
   } catch (err) { next(err); }
@@ -39,21 +41,19 @@ async function myAssignedUsers(req, res, next) {
 async function getAssignedUser(req, res, next) {
   try {
     const userId = Number(req.params.id);
-    const sub = await prisma.subscription.findFirst({
-      where: { userId, instructorId: req.user.id },
-      include: {
-        user: { select: {
-          id: true, email: true, fullName: true, photoUrl: true,
-          age: true, gender: true, wellnessGoals: true,
-        }},
+    const sub = await db.query.subscriptions.findFirst({
+      where: (t, { eq, and }) => and(eq(t.userId, userId), eq(t.instructorId, req.user.id)),
+      with: {
+        user: { columns: { id: true, email: true, fullName: true, photoUrl: true, age: true, gender: true, wellnessGoals: true } },
         program: true,
       },
     });
     if (!sub) return res.status(404).json({ message: 'Not found or not assigned to you' });
-    const notes = await prisma.instructorNote.findMany({
-      where: { userId },
-      orderBy: { createdAt: 'desc' },
-      include: { author: { select: { id: true, fullName: true } } },
+
+    const notes = await db.query.instructorNotes.findMany({
+      where: (t, { eq }) => eq(t.userId, userId),
+      orderBy: (t, { desc }) => desc(t.createdAt),
+      with: { author: { columns: { id: true, fullName: true } } },
     });
     res.json({ ...sub, notes });
   } catch (err) { next(err); }
@@ -64,13 +64,12 @@ async function addNote(req, res, next) {
     const userId = Number(req.params.id);
     const { body } = req.body;
     if (!body) return res.status(400).json({ message: 'Note body required' });
-    const assigned = await prisma.subscription.findFirst({
-      where: { userId, instructorId: req.user.id },
+    const assigned = await db.query.subscriptions.findFirst({
+      where: (t, { eq, and }) => and(eq(t.userId, userId), eq(t.instructorId, req.user.id)),
     });
     if (!assigned) return res.status(403).json({ message: 'Not your assigned user' });
-    const note = await prisma.instructorNote.create({
-      data: { userId, authorId: req.user.id, body },
-    });
+    const [{ id }] = await db.insert(instructorNotes).values({ userId, authorId: req.user.id, body }).$returningId();
+    const note = await db.query.instructorNotes.findFirst({ where: (t, { eq }) => eq(t.id, id) });
     res.status(201).json(note);
   } catch (err) { next(err); }
 }
@@ -97,21 +96,29 @@ function calcMeditationStreak(entries) {
 async function getAssignedUserProgress(req, res, next) {
   try {
     const userId = Number(req.params.id);
-    const assigned = await prisma.subscription.findFirst({
-      where: { userId, instructorId: req.user.id },
+    const assigned = await db.query.subscriptions.findFirst({
+      where: (t, { eq, and }) => and(eq(t.userId, userId), eq(t.instructorId, req.user.id)),
     });
     if (!assigned) return res.status(403).json({ message: 'Not your assigned user' });
+
     const { type } = req.query;
     const TYPES = new Set(['weight', 'meditation', 'mood']);
-    const where = { userId };
-    if (type && TYPES.has(type)) where.type = type;
-    const entries = await prisma.progressEntry.findMany({
-      where,
-      orderBy: { recordedAt: 'desc' },
-      take: 200,
+    const entries = await db.query.progressEntries.findMany({
+      where: (t, { eq, and }) => {
+        const base = eq(t.userId, userId);
+        if (type && TYPES.has(type)) return and(base, eq(t.type, type));
+        return base;
+      },
+      orderBy: (t, { desc }) => desc(t.recordedAt),
+      limit: 200,
     });
+
     const allMed = (type && type !== 'meditation')
-      ? await prisma.progressEntry.findMany({ where: { userId, type: 'meditation' }, orderBy: { recordedAt: 'desc' }, take: 200 })
+      ? await db.query.progressEntries.findMany({
+          where: (t, { eq, and }) => and(eq(t.userId, userId), eq(t.type, 'meditation')),
+          orderBy: (t, { desc }) => desc(t.recordedAt),
+          limit: 200,
+        })
       : entries;
     res.json({ entries, meditationStreak: calcMeditationStreak(allMed) });
   } catch (err) { next(err); }

@@ -1,27 +1,28 @@
-const { prisma } = require('../lib/prisma');
+const { eq, and, or, isNull, count } = require('drizzle-orm');
+const { db } = require('../lib/prisma');
+const { messages, subscriptions } = require('../db/schema');
 const { notify } = require('../lib/notify');
 const { getIO } = require('../lib/socket');
-const { upload, deleteFile } = require('../middleware/upload');
 
 async function listConversations(req, res, next) {
   try {
     const userId = req.user.id;
-    const messages = await prisma.message.findMany({
-      where: { OR: [{ senderId: userId }, { recipientId: userId }] },
-      orderBy: { createdAt: 'desc' },
-      include: {
-        sender:    { select: { id: true, fullName: true, photoUrl: true } },
-        recipient: { select: { id: true, fullName: true, photoUrl: true } },
+    const allMessages = await db.query.messages.findMany({
+      where: (t, { eq, or }) => or(eq(t.senderId, userId), eq(t.recipientId, userId)),
+      orderBy: (t, { desc }) => desc(t.createdAt),
+      with: {
+        sender:    { columns: { id: true, fullName: true, photoUrl: true } },
+        recipient: { columns: { id: true, fullName: true, photoUrl: true } },
       },
     });
+
     const map = new Map();
-    for (const m of messages) {
+    for (const m of allMessages) {
       const other = m.senderId === userId ? m.recipient : m.sender;
       if (!map.has(other.id)) {
-        const unread = await prisma.message.count({
-          where: { senderId: other.id, recipientId: userId, readAt: null },
-        });
-        map.set(other.id, { peer: other, lastMessage: m, unread });
+        const [{ value: unread }] = await db.select({ value: count() }).from(messages)
+          .where(and(eq(messages.senderId, other.id), eq(messages.recipientId, userId), isNull(messages.readAt)));
+        map.set(other.id, { peer: other, lastMessage: m, unread: Number(unread) });
       }
     }
     res.json(Array.from(map.values()));
@@ -32,20 +33,17 @@ async function listMessages(req, res, next) {
   try {
     const peerId = Number(req.params.peerId);
     const userId = req.user.id;
-    const messages = await prisma.message.findMany({
-      where: {
-        OR: [
-          { senderId: userId, recipientId: peerId },
-          { senderId: peerId, recipientId: userId },
-        ],
-      },
-      orderBy: { createdAt: 'asc' },
+    const msgs = await db.query.messages.findMany({
+      where: (t, { eq, or, and }) => or(
+        and(eq(t.senderId, userId), eq(t.recipientId, peerId)),
+        and(eq(t.senderId, peerId), eq(t.recipientId, userId)),
+      ),
+      orderBy: (t, { asc }) => asc(t.createdAt),
     });
-    await prisma.message.updateMany({
-      where: { senderId: peerId, recipientId: userId, readAt: null },
-      data: { readAt: new Date() },
-    });
-    res.json(messages);
+    await db.update(messages)
+      .set({ readAt: new Date() })
+      .where(and(eq(messages.senderId, peerId), eq(messages.recipientId, userId), isNull(messages.readAt)));
+    res.json(msgs);
   } catch (err) { next(err); }
 }
 
@@ -58,34 +56,31 @@ async function sendMessage(req, res, next) {
     if (!recipientId) return res.status(400).json({ message: 'recipientId required' });
     if (!body && !fileUrl) return res.status(400).json({ message: 'body or file required' });
 
-    const recipient = await prisma.user.findUnique({ where: { id: Number(recipientId) } });
+    const recipient = await db.query.users.findFirst({ where: (t, { eq }) => eq(t.id, Number(recipientId)) });
     if (!recipient) return res.status(404).json({ message: 'Recipient not found' });
 
     const isAdmin = req.user.role === 'admin';
     if (!isAdmin) {
-      const linked = await prisma.subscription.findFirst({
-        where: {
-          OR: [
-            { userId: req.user.id, instructorId: recipient.id },
-            { userId: recipient.id, instructorId: req.user.id },
-          ],
-        },
+      const linked = await db.query.subscriptions.findFirst({
+        where: (t, { eq, or, and }) => or(
+          and(eq(t.userId, req.user.id), eq(t.instructorId, recipient.id)),
+          and(eq(t.userId, recipient.id), eq(t.instructorId, req.user.id)),
+        ),
       });
       if (!linked) return res.status(403).json({ message: 'No conversation context with this user' });
     }
 
-    const message = await prisma.message.create({
-      data: {
-        senderId: req.user.id,
-        recipientId: recipient.id,
-        subscriptionId: subscriptionId ? Number(subscriptionId) : null,
-        body: body || null,
-        fileUrl: fileUrl || null,
-        fileName: fileName || null,
-      },
-      include: {
-        sender: { select: { id: true, fullName: true, photoUrl: true } },
-      },
+    const [{ id }] = await db.insert(messages).values({
+      senderId: req.user.id,
+      recipientId: recipient.id,
+      subscriptionId: subscriptionId ? Number(subscriptionId) : null,
+      body: body || null,
+      fileUrl: fileUrl || null,
+      fileName: fileName || null,
+    }).$returningId();
+    const message = await db.query.messages.findFirst({
+      where: (t, { eq }) => eq(t.id, id),
+      with: { sender: { columns: { id: true, fullName: true, photoUrl: true } } },
     });
 
     const io = getIO();
