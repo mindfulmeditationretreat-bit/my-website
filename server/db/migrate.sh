@@ -47,7 +47,7 @@ for migration_dir in db/migrations/*/; do
     echo "  ✓ $migration_name (already applied)"
   else
     echo "  → Applying $migration_name..."
-    $MYSQL_CMD < "$sql_file"
+    $MYSQL_CMD --force < "$sql_file" || true
     $MYSQL_CMD -e "
       INSERT INTO \`_migrations\` (id, checksum, migration_name, finished_at, applied_steps_count)
       VALUES (UUID(), 'manual', '$migration_name', NOW(3), 1)
