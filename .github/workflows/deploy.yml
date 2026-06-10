@@ -72,7 +72,7 @@ jobs:
           ssh -i ~/.ssh/deploy_key \
               -p ${{ secrets.CPANEL_SSH_PORT }} \
               ${{ secrets.CPANEL_USERNAME }}@${{ secrets.CPANEL_HOST }} \
-              'NODE=/home/mindful1/nodevenv/api/20/bin/node && cd ~ && tar -xzf api.tar.gz -C ~/api && rm api.tar.gz && cd ~/api && $NODE /home/mindful1/npm-global/lib/node_modules/npm/bin/npm-cli.js install --omit=dev && echo "Install done"'
+              'source /home/mindful1/nodevenv/api/20/bin/activate && cd ~ && tar -xzf api.tar.gz -C ~/api && rm api.tar.gz && cd ~/api && npm install --omit=dev && echo "Install done"'
 
       - name: Run SQL migrations
         run: |
