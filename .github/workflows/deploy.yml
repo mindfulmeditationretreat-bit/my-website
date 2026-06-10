@@ -62,6 +62,7 @@ jobs:
           printf 'NODE_ENV=production\n' >> /tmp/production.env
           printf 'CLIENT_ORIGIN=https://mindfulmeditationretreat.org\n' >> /tmp/production.env
           printf 'SERVER_ORIGIN=https://api.mindfulmeditationretreat.org\n' >> /tmp/production.env
+          printf 'COOKIE_DOMAIN=.mindfulmeditationretreat.org\n' >> /tmp/production.env
           printf 'JWT_EXPIRES_IN=7d\n' >> /tmp/production.env
           printf 'UPLOAD_DIR=uploads\n' >> /tmp/production.env
           printf 'MAX_UPLOAD_MB=25\n' >> /tmp/production.env
