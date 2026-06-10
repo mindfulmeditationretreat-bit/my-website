@@ -1,0 +1,7 @@
+---
+deployment:
+  tasks:
+    - export DEPLOYPATH=/home/corexinn/mindful.corexinnovations.com
+    - /bin/bash -c "cd $DEPLOYPATH && npm install --legacy-peer-deps"
+    - /bin/bash -c "cd $DEPLOYPATH && npx prisma generate"
+    - /bin/bash -c "cd $DEPLOYPATH && npx prisma db push"
