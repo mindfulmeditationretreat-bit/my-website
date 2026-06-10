@@ -24,49 +24,52 @@ jobs:
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -p ${{ secrets.CPANEL_SSH_PORT }} ${{ secrets.CPANEL_HOST }} >> ~/.ssh/known_hosts 2>/dev/null
 
-      - name: Upload backend files
+      - name: Package server files
         run: |
-          rsync -avz --delete \
-            --exclude 'node_modules/' \
-            --exclude '.env' \
-            --exclude 'uploads/' \
-            --exclude '.git/' \
-            --exclude '*.log' \
-            -e "ssh -i ~/.ssh/deploy_key -p ${{ secrets.CPANEL_SSH_PORT }}" \
-            ./server/ \
-            ${{ secrets.CPANEL_USERNAME }}@${{ secrets.CPANEL_HOST }}:~/api/
+          tar --exclude='server/node_modules' \
+              --exclude='server/.env' \
+              --exclude='server/uploads' \
+              --exclude='server/.git' \
+              --exclude='server/*.log' \
+              -czf /tmp/api.tar.gz -C server .
 
-      - name: Write .env file
+      - name: Upload archive to server
         run: |
-          cat > /tmp/production.env << 'EOF'
-          PORT=5000
-          NODE_ENV=production
-          CLIENT_ORIGIN=https://mindfulmeditationretreat.org
-          SERVER_ORIGIN=https://api.mindfulmeditationretreat.org
-          JWT_EXPIRES_IN=7d
-          UPLOAD_DIR=uploads
-          MAX_UPLOAD_MB=25
-          EOF
-          echo "DATABASE_URL=${{ secrets.DATABASE_URL }}" >> /tmp/production.env
-          echo "JWT_SECRET=${{ secrets.JWT_SECRET }}" >> /tmp/production.env
-          echo "SESSION_SECRET=${{ secrets.SESSION_SECRET }}" >> /tmp/production.env
-          echo "GOOGLE_CLIENT_ID=${{ secrets.GOOGLE_CLIENT_ID }}" >> /tmp/production.env
-          echo "GOOGLE_CLIENT_SECRET=${{ secrets.GOOGLE_CLIENT_SECRET }}" >> /tmp/production.env
-          echo "SMTP_HOST=${{ secrets.SMTP_HOST }}" >> /tmp/production.env
-          echo "SMTP_PORT=${{ secrets.SMTP_PORT }}" >> /tmp/production.env
-          echo "SMTP_USER=${{ secrets.SMTP_USER }}" >> /tmp/production.env
-          echo "SMTP_PASS=${{ secrets.SMTP_PASS }}" >> /tmp/production.env
-          echo "SMTP_FROM=${{ secrets.SMTP_FROM }}" >> /tmp/production.env
-          echo "IMAGEKIT_PUBLIC_KEY=${{ secrets.IMAGEKIT_PUBLIC_KEY }}" >> /tmp/production.env
-          echo "IMAGEKIT_PRIVATE_KEY=${{ secrets.IMAGEKIT_PRIVATE_KEY }}" >> /tmp/production.env
-          echo "IMAGEKIT_URL_ENDPOINT=${{ secrets.IMAGEKIT_URL_ENDPOINT }}" >> /tmp/production.env
-          scp -i ~/.ssh/deploy_key -P ${{ secrets.CPANEL_SSH_PORT }} \
-            /tmp/production.env \
-            ${{ secrets.CPANEL_USERNAME }}@${{ secrets.CPANEL_HOST }}:~/api/.env
+          scp -i ~/.ssh/deploy_key \
+              -P ${{ secrets.CPANEL_SSH_PORT }} \
+              /tmp/api.tar.gz \
+              ${{ secrets.CPANEL_USERNAME }}@${{ secrets.CPANEL_HOST }}:~/api.tar.gz
 
-      - name: Post-deploy (install, migrate, seed, restart)
+      - name: Write .env and upload
+        run: |
+          printf 'PORT=5000\n' > /tmp/production.env
+          printf 'NODE_ENV=production\n' >> /tmp/production.env
+          printf 'CLIENT_ORIGIN=https://mindfulmeditationretreat.org\n' >> /tmp/production.env
+          printf 'SERVER_ORIGIN=https://api.mindfulmeditationretreat.org\n' >> /tmp/production.env
+          printf 'JWT_EXPIRES_IN=7d\n' >> /tmp/production.env
+          printf 'UPLOAD_DIR=uploads\n' >> /tmp/production.env
+          printf 'MAX_UPLOAD_MB=25\n' >> /tmp/production.env
+          printf 'DATABASE_URL=%s\n' "${{ secrets.DATABASE_URL }}" >> /tmp/production.env
+          printf 'JWT_SECRET=%s\n' "${{ secrets.JWT_SECRET }}" >> /tmp/production.env
+          printf 'SESSION_SECRET=%s\n' "${{ secrets.SESSION_SECRET }}" >> /tmp/production.env
+          printf 'GOOGLE_CLIENT_ID=%s\n' "${{ secrets.GOOGLE_CLIENT_ID }}" >> /tmp/production.env
+          printf 'GOOGLE_CLIENT_SECRET=%s\n' "${{ secrets.GOOGLE_CLIENT_SECRET }}" >> /tmp/production.env
+          printf 'SMTP_HOST=%s\n' "${{ secrets.SMTP_HOST }}" >> /tmp/production.env
+          printf 'SMTP_PORT=%s\n' "${{ secrets.SMTP_PORT }}" >> /tmp/production.env
+          printf 'SMTP_USER=%s\n' "${{ secrets.SMTP_USER }}" >> /tmp/production.env
+          printf 'SMTP_PASS=%s\n' "${{ secrets.SMTP_PASS }}" >> /tmp/production.env
+          printf 'SMTP_FROM=%s\n' "${{ secrets.SMTP_FROM }}" >> /tmp/production.env
+          printf 'IMAGEKIT_PUBLIC_KEY=%s\n' "${{ secrets.IMAGEKIT_PUBLIC_KEY }}" >> /tmp/production.env
+          printf 'IMAGEKIT_PRIVATE_KEY=%s\n' "${{ secrets.IMAGEKIT_PRIVATE_KEY }}" >> /tmp/production.env
+          printf 'IMAGEKIT_URL_ENDPOINT=%s\n' "${{ secrets.IMAGEKIT_URL_ENDPOINT }}" >> /tmp/production.env
+          scp -i ~/.ssh/deploy_key \
+              -P ${{ secrets.CPANEL_SSH_PORT }} \
+              /tmp/production.env \
+              ${{ secrets.CPANEL_USERNAME }}@${{ secrets.CPANEL_HOST }}:~/api/.env
+
+      - name: Extract and deploy on server
         run: |
           ssh -i ~/.ssh/deploy_key \
               -p ${{ secrets.CPANEL_SSH_PORT }} \
               ${{ secrets.CPANEL_USERNAME }}@${{ secrets.CPANEL_HOST }} \
-              'export PATH=/opt/alt/alt-nodejs22/root/usr/bin:$HOME/npm-global/bin:$PATH && cd ~/api && npm install --omit=dev && npx prisma generate && npx prisma migrate deploy && (npx prisma db seed || echo "Seed skipped") && (pm2 restart mindfull-api --update-env || pm2 start ecosystem.config.js --env production) && pm2 save --force && echo "Deployment complete!"'
+              'export PATH=/opt/alt/alt-nodejs22/root/usr/bin:$HOME/npm-global/bin:$PATH && cd ~ && tar -xzf api.tar.gz -C ~/api && rm api.tar.gz && cd ~/api && npm install --omit=dev && npx prisma generate && npx prisma migrate deploy && (npx prisma db seed || echo "Seed skipped") && (pm2 restart mindfull-api --update-env 2>/dev/null || pm2 start ecosystem.config.js --env production) && pm2 save --force && echo "Deployment complete!"'
