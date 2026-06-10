@@ -1,8 +1,10 @@
 #!/bin/bash
 set -e
 
-# Load .env
-export $(grep -v '^#' .env | xargs)
+# Load .env (safe for values containing special characters)
+set -a
+. .env
+set +a
 
 # Parse DATABASE_URL: mysql://user:pass@host:port/dbname
 DB_URL="${DATABASE_URL}"
