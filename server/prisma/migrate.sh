@@ -1,10 +1,8 @@
 #!/bin/bash
 set -e
 
-# Load .env (safe for values containing special characters)
-set -a
-. .env
-set +a
+# Extract DATABASE_URL directly — avoids sourcing values with special chars
+DATABASE_URL=$(grep -m1 '^DATABASE_URL=' .env | cut -d'=' -f2-)
 
 # Parse DATABASE_URL: mysql://user:pass@host:port/dbname
 DB_URL="${DATABASE_URL}"
