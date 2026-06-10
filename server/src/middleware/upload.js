@@ -1,29 +1,23 @@
 const path = require('path');
 const fs = require('fs');
 const multer = require('multer');
+const ImageKit = require('@imagekit/nodejs');
 
-// ── Cloudinary (if credentials provided) ──────────────────────────────────────
-let cloudinary = null;
-let CloudinaryStorage = null;
-const hasCloudinary = !!(
-  process.env.CLOUDINARY_CLOUD_NAME &&
-  process.env.CLOUDINARY_API_KEY &&
-  process.env.CLOUDINARY_API_SECRET
+// ── ImageKit setup ─────────────────────────────────────────────────────────────
+const hasImageKit = !!(
+  process.env.IMAGEKIT_PUBLIC_KEY &&
+  process.env.IMAGEKIT_PRIVATE_KEY &&
+  process.env.IMAGEKIT_URL_ENDPOINT
 );
 
-if (hasCloudinary) {
-  try {
-    cloudinary = require('cloudinary').v2;
-    cloudinary.config({
-      cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-      api_key:    process.env.CLOUDINARY_API_KEY,
-      api_secret: process.env.CLOUDINARY_API_SECRET,
-    });
-    CloudinaryStorage = require('multer-storage-cloudinary').CloudinaryStorage;
-    console.log('[upload] Cloudinary configured — files will be uploaded to the cloud');
-  } catch (e) {
-    console.warn('[upload] cloudinary/multer-storage-cloudinary not installed; falling back to disk', e.message);
-  }
+let imagekit = null;
+if (hasImageKit) {
+  imagekit = new ImageKit({
+    publicKey:   process.env.IMAGEKIT_PUBLIC_KEY,
+    privateKey:  process.env.IMAGEKIT_PRIVATE_KEY,
+    urlEndpoint: process.env.IMAGEKIT_URL_ENDPOINT,
+  });
+  console.log('[upload] ImageKit configured — files will be uploaded to the cloud');
 }
 
 // ── Local disk fallback ────────────────────────────────────────────────────────
@@ -32,53 +26,92 @@ if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 
 const diskStorage = multer.diskStorage({
   destination: UPLOAD_DIR,
-  filename: (req, file, cb) => {
+  filename: (_req, file, cb) => {
     const ext = path.extname(file.originalname);
     const base = path.basename(file.originalname, ext).replace(/[^a-z0-9-_]/gi, '_').slice(0, 60);
     cb(null, `${Date.now()}-${base}${ext}`);
   },
 });
 
-// ── Multer instances ────────────────────────────────────────────────────────────
-const MAX_MB = Number(process.env.MAX_UPLOAD_MB) || 25;
+// ── ImageKit custom multer storage engine ──────────────────────────────────────
+function makeImageKitStorage(folder) {
+  return {
+    _handleFile(_req, file, cb) {
+      const chunks = [];
+      file.stream.on('data', (chunk) => chunks.push(chunk));
+      file.stream.on('error', cb);
+      file.stream.on('end', async () => {
+        try {
+          const buffer = Buffer.concat(chunks);
+          const ext = path.extname(file.originalname);
+          const base = path.basename(file.originalname, ext)
+            .replace(/[^a-z0-9-_]/gi, '_')
+            .slice(0, 60);
+          const fileName = `${Date.now()}-${base}${ext}`;
 
-function makeUpload(folder, resourceType = 'auto') {
-  if (hasCloudinary && CloudinaryStorage) {
-    const storage = new CloudinaryStorage({
-      cloudinary,
-      params: {
-        folder: `mindful/${folder}`,
-        resource_type: resourceType,
-        use_filename: true,
-        unique_filename: true,
-      },
-    });
-    return multer({ storage, limits: { fileSize: MAX_MB * 1024 * 1024 } });
-  }
-  return multer({ storage: diskStorage, limits: { fileSize: MAX_MB * 1024 * 1024 } });
+          const result = await imagekit.files.upload({
+            file: buffer,
+            fileName,
+            folder: `/mindful/${folder}`,
+            useUniqueFileName: false,
+          });
+
+          cb(null, {
+            fieldname:    file.fieldname,
+            originalname: file.originalname,
+            mimetype:     file.mimetype,
+            path:         result.url,    // full ImageKit URL — used by controllers
+            fileId:       result.fileId, // used for deletion
+            size:         result.size,
+          });
+        } catch (err) {
+          cb(err);
+        }
+      });
+    },
+    _removeFile(_req, file, cb) {
+      if (file.fileId && imagekit) {
+        imagekit.files.delete(file.fileId).catch(() => {});
+      }
+      cb(null);
+    },
+  };
 }
 
-// General resource upload (auto-detects images, video, audio, raw)
-const upload = makeUpload('resources', 'auto');
+// ── Multer instances ───────────────────────────────────────────────────────────
+const MAX_MB = Number(process.env.MAX_UPLOAD_MB) || 25;
+const limits = { fileSize: MAX_MB * 1024 * 1024 };
 
-// Profile photo upload (images only)
-const uploadPhoto = makeUpload('photos', 'image');
+// General resource uploads (pdf, video, audio, image, article attachments)
+const upload = hasImageKit
+  ? multer({ storage: makeImageKitStorage('resources'), limits })
+  : multer({ storage: diskStorage, limits });
+
+// Profile photo uploads
+const uploadPhoto = hasImageKit
+  ? multer({ storage: makeImageKitStorage('photos'), limits })
+  : multer({ storage: diskStorage, limits });
 
 // ── Delete helper ──────────────────────────────────────────────────────────────
 async function deleteFile(url) {
   if (!url) return;
-  if (url.startsWith('http') && hasCloudinary && cloudinary) {
-    // Extract public_id and resource_type from Cloudinary URL
-    // Format: https://res.cloudinary.com/{cloud}/{resource_type}/upload/v{ver}/{public_id}.{ext}
-    const match = url.match(/cloudinary\.com\/[^/]+\/([^/]+)\/upload\/(?:v\d+\/)?(.+?)(?:\.[^.]+)?$/);
-    if (match) {
-      const resourceType = match[1]; // image | video | raw
-      const publicId = match[2];
-      try {
-        await cloudinary.uploader.destroy(publicId, { resource_type: resourceType });
-      } catch (e) {
-        console.warn('[upload] Cloudinary delete failed:', e.message);
+
+  if (url.startsWith('https://ik.imagekit.io') && imagekit) {
+    try {
+      const endpoint = new URL(process.env.IMAGEKIT_URL_ENDPOINT);
+      const urlObj = new URL(url);
+      // Strip the ImageKit account prefix to get /mindful/photos/filename.jpg
+      const fullPath = urlObj.pathname.replace(endpoint.pathname, '');
+      const folder   = fullPath.substring(0, fullPath.lastIndexOf('/'));  // /mindful/photos
+      const name     = fullPath.substring(fullPath.lastIndexOf('/') + 1); // filename.jpg
+
+      const result = await imagekit.assets.list({ path: folder, name, limit: 1 });
+      const assets = result?.data || result || [];
+      if (assets.length) {
+        await imagekit.files.delete(assets[0].fileId);
       }
+    } catch (e) {
+      console.warn('[upload] ImageKit delete failed:', e.message);
     }
   } else if (url.startsWith('/uploads/')) {
     const filepath = path.join(UPLOAD_DIR, path.basename(url));
@@ -86,4 +119,4 @@ async function deleteFile(url) {
   }
 }
 
-module.exports = { upload, uploadPhoto, UPLOAD_DIR, deleteFile, hasCloudinary };
+module.exports = { upload, uploadPhoto, UPLOAD_DIR, deleteFile, hasImageKit };

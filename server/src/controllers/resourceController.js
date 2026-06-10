@@ -56,7 +56,6 @@ async function createResource(req, res, next) {
     if (!TYPES.has(type)) return res.status(400).json({ message: 'invalid type' });
     if (!CATEGORIES.has(category)) return res.status(400).json({ message: 'invalid category' });
 
-    // Cloudinary gives back req.file.path (full https URL); local disk gives filename
     let url = externalUrl || null;
     if (req.file) {
       url = req.file.path || `/uploads/${req.file.filename}`;

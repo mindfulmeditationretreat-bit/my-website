@@ -1,5 +1,6 @@
 const bcrypt = require('bcryptjs');
 const { prisma } = require('../lib/prisma');
+const { deleteFile } = require('../middleware/upload');
 
 const WELLNESS_GOALS = new Set([
   'weight_loss', 'better_sleep', 'stress_reduction', 'meditation_practice',
@@ -67,8 +68,11 @@ async function updateProfile(req, res, next) {
     if (expertise !== undefined) data.expertise = expertise;
     if (availability !== undefined) data.availability = availability;
     if (photoUrl !== undefined) data.photoUrl = photoUrl;
-    // Cloudinary gives req.file.path (full https URL); local disk gives req.file.filename
-    if (req.file) data.photoUrl = req.file.path || `/uploads/${req.file.filename}`;
+    if (req.file) {
+      const existing = await prisma.user.findUnique({ where: { id: req.user.id }, select: { photoUrl: true } });
+      if (existing?.photoUrl) deleteFile(existing.photoUrl).catch(() => {});
+      data.photoUrl = req.file.path || `/uploads/${req.file.filename}`;
+    }
     await prisma.user.update({ where: { id: req.user.id }, data });
     const updated = await prisma.user.findUnique({
       where: { id: req.user.id },

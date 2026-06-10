@@ -1,7 +1,6 @@
+# This file is kept for reference only.
+# Deployment is handled by GitHub Actions (.github/workflows/deploy.yml).
+# Do NOT use cPanel Git Version Control for this project.
 ---
 deployment:
-  tasks:
-    - export DEPLOYPATH=/home/corexinn/mindful.corexinnovations.com
-    - /bin/bash -c "cd $DEPLOYPATH && npm install --legacy-peer-deps"
-    - /bin/bash -c "cd $DEPLOYPATH && npx prisma generate"
-    - /bin/bash -c "cd $DEPLOYPATH && npx prisma db push"
+  tasks: []
