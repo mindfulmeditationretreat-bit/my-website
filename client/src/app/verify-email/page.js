@@ -1,10 +1,12 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { api, dashboardPathFor } from '@/lib/api';
 
 export default function CheckEmailPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const emailSent = searchParams.get('sent') !== '0';
   const [email, setEmail] = useState('');
   const [ready, setReady] = useState(false);
   const [resending, setResending] = useState(false);
@@ -79,11 +81,18 @@ export default function CheckEmailPage() {
         </div>
 
         <h1 className="heading text-3xl font-light mb-2">Check your inbox</h1>
-        <p className="text-cream/60 text-sm mb-8 leading-relaxed">
-          We sent a verification link to{' '}
-          <span className="text-cream">{email || 'your email'}</span>. Click it to verify your
-          account and continue. This page will update automatically once you do.
-        </p>
+        {emailSent ? (
+          <p className="text-cream/60 text-sm mb-8 leading-relaxed">
+            We sent a verification link to{' '}
+            <span className="text-cream">{email || 'your email'}</span>. Click it to verify your
+            account and continue. This page will update automatically once you do.
+          </p>
+        ) : (
+          <p className="text-red-400/90 text-sm mb-8 leading-relaxed bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
+            Failed to send verification email to <span className="text-cream">{email || 'your email'}</span>.
+            Please use the resend button below.
+          </p>
+        )}
 
         <p className="text-cream/50 text-xs mb-6">The link expires in 10 minutes.</p>
 

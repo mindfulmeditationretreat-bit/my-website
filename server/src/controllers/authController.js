@@ -57,12 +57,14 @@ async function signup(req, res, next) {
     const [{ id }] = await db.insert(users).values({ email, passwordHash, role: 'user', updatedAt: new Date() }).$returningId();
     const user = await db.query.users.findFirst({ where: (t, { eq }) => eq(t.id, id) });
 
+    let emailSent = false;
     try {
       await sendVerificationEmail(user);
+      emailSent = true;
     } catch (e) { console.error('[signup] verification email failed', e.message); }
 
     res.cookie('token', signToken(user), COOKIE_OPTIONS);
-    res.status(201).json(publicUser(user));
+    res.status(201).json({ ...publicUser(user), emailSent });
   } catch (err) { next(err); }
 }
 

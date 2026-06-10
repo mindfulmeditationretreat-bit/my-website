@@ -74,8 +74,8 @@ export default function SignupPage() {
     setLoading(true);
     setError('');
     try {
-      await api.post('/auth/signup', { email, password });
-      router.push('/verify-email');
+      const res = await api.post('/auth/signup', { email, password });
+      router.push(res.emailSent ? '/verify-email?sent=1' : '/verify-email?sent=0');
     } catch (err) {
       setError(err.message);
       setLoading(false);
