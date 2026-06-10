@@ -1,0 +1,117 @@
+name: Deploy Backend to cPanel
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'server/**'
+      - '.github/workflows/deploy.yml'
+
+jobs:
+  deploy-backend:
+    name: Deploy API to cPanel
+    runs-on: ubuntu-latest
+
+    steps:
+      # ── 1. Checkout ────────────────────────────────────────────────────────────
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # ── 2. SSH key setup ────────────────────────────────────────────────────────
+      - name: Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.CPANEL_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -p ${{ secrets.CPANEL_SSH_PORT }} ${{ secrets.CPANEL_HOST }} >> ~/.ssh/known_hosts 2>/dev/null
+
+      # ── 3. Upload server files via rsync ────────────────────────────────────────
+      - name: Upload backend files
+        run: |
+          rsync -avz --delete \
+            --exclude 'node_modules/' \
+            --exclude '.env' \
+            --exclude 'uploads/' \
+            --exclude '.git/' \
+            --exclude '*.log' \
+            -e "ssh -i ~/.ssh/deploy_key -p ${{ secrets.CPANEL_SSH_PORT }}" \
+            ./server/ \
+            ${{ secrets.CPANEL_USERNAME }}@${{ secrets.CPANEL_HOST }}:~/api/
+
+      # ── 4. Run all post-deploy steps on the server ─────────────────────────────
+      - name: Post-deploy (install, migrate, seed, restart)
+        run: |
+          ssh -i ~/.ssh/deploy_key \
+              -p ${{ secrets.CPANEL_SSH_PORT }} \
+              ${{ secrets.CPANEL_USERNAME }}@${{ secrets.CPANEL_HOST }} \
+              'bash -s' << 'ENDSSH'
+          set -e
+
+          cd ~/api
+
+          echo "──────────────────────────────────────"
+          echo " Writing .env"
+          echo "──────────────────────────────────────"
+          cat > .env << 'ENVEOF'
+          PORT=5000
+          NODE_ENV=production
+          CLIENT_ORIGIN=https://mindfulmeditationretreat.org
+          SERVER_ORIGIN=https://api.mindfulmeditationretreat.org
+
+          DATABASE_URL=${{ secrets.DATABASE_URL }}
+
+          JWT_SECRET=${{ secrets.JWT_SECRET }}
+          JWT_EXPIRES_IN=7d
+          SESSION_SECRET=${{ secrets.SESSION_SECRET }}
+
+          GOOGLE_CLIENT_ID=${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET=${{ secrets.GOOGLE_CLIENT_SECRET }}
+
+          SMTP_HOST=${{ secrets.SMTP_HOST }}
+          SMTP_PORT=${{ secrets.SMTP_PORT }}
+          SMTP_USER=${{ secrets.SMTP_USER }}
+          SMTP_PASS=${{ secrets.SMTP_PASS }}
+          SMTP_FROM=${{ secrets.SMTP_FROM }}
+
+          IMAGEKIT_PUBLIC_KEY=${{ secrets.IMAGEKIT_PUBLIC_KEY }}
+          IMAGEKIT_PRIVATE_KEY=${{ secrets.IMAGEKIT_PRIVATE_KEY }}
+          IMAGEKIT_URL_ENDPOINT=${{ secrets.IMAGEKIT_URL_ENDPOINT }}
+
+          UPLOAD_DIR=uploads
+          MAX_UPLOAD_MB=25
+          ENVEOF
+
+          echo "──────────────────────────────────────"
+          echo " npm install"
+          echo "──────────────────────────────────────"
+          npm install --omit=dev
+
+          echo "──────────────────────────────────────"
+          echo " Prisma generate"
+          echo "──────────────────────────────────────"
+          npx prisma generate
+
+          echo "──────────────────────────────────────"
+          echo " Prisma migrate deploy"
+          echo "──────────────────────────────────────"
+          npx prisma migrate deploy
+
+          echo "──────────────────────────────────────"
+          echo " Prisma seed"
+          echo "──────────────────────────────────────"
+          npx prisma db seed || echo "Seed skipped"
+
+          echo "──────────────────────────────────────"
+          echo " PM2 restart"
+          echo "──────────────────────────────────────"
+          if pm2 list | grep -q "mindfull-api"; then
+            pm2 restart mindfull-api --update-env
+          else
+            pm2 start ecosystem.config.js --env production
+            pm2 save
+          fi
+
+          echo ""
+          echo "✓ Backend deployment complete"
+          ENDSSH
