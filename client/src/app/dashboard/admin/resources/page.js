@@ -55,7 +55,7 @@ export default function AdminResourcesPage() {
           <h1 className="heading text-4xl font-light mb-1">Resource library</h1>
           <p className="text-cream/50 text-sm">{resources.length} resources · {totalFree} free · {totalPremium} premium</p>
         </div>
-        <Link href="/dashboard/instructor/resources" className="btn-primary">+ Upload resource</Link>
+        <Link href="/dashboard/provider/resources" className="btn-primary">+ Upload resource</Link>
       </div>
 
       {/* Filters */}

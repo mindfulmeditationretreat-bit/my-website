@@ -58,7 +58,7 @@ export default function AdminUserEditPage() {
     try {
       const [u, instrs, progs] = await Promise.all([
         api.get(`/admin/users/${id}`),
-        api.get('/instructors'),
+        api.get('/providers'),
         api.get('/admin/programs'),
       ]);
       setUser(u);
@@ -81,7 +81,7 @@ export default function AdminUserEditPage() {
   }
 
   async function assignInstructor(subId, instructorId) {
-    await api.post(`/admin/subscriptions/${subId}/assign-instructor`, { instructorId: instructorId || null });
+    await api.post(`/admin/subscriptions/${subId}/assign-provider`, { instructorId: instructorId || null });
     setMsg('Provider updated.');
     await load();
   }

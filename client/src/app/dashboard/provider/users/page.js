@@ -8,7 +8,7 @@ export default function InstructorUsersPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    api.get('/instructors/me/users').then((d) => { setSubs(d); setLoading(false); });
+    api.get('/providers/me/users').then((d) => { setSubs(d); setLoading(false); });
   }, []);
 
   if (loading) return <p className="text-cream/60">Loading…</p>;
@@ -23,7 +23,7 @@ export default function InstructorUsersPage() {
       ) : (
         <div className="space-y-3">
           {subs.map((s) => (
-            <Link key={s.id} href={`/dashboard/instructor/users/${s.user.id}`} className="card flex items-center justify-between hover:border-gold/40 transition">
+            <Link key={s.id} href={`/dashboard/provider/users/${s.user.id}`} className="card flex items-center justify-between hover:border-gold/40 transition">
               <div>
                 <h3 className="heading text-xl">{s.user.fullName || s.user.email}</h3>
                 <p className="text-cream/60 text-sm mt-1">{s.program.name} · {s.status}</p>

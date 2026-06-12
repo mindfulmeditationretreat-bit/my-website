@@ -4,7 +4,7 @@ const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
 
 async function fetchInstructor(id) {
   try {
-    const res = await fetch(`${API}/instructors/${id}`, { cache: 'no-store' });
+    const res = await fetch(`${API}/providers/${id}`, { cache: 'no-store' });
     if (!res.ok) return null;
     return res.json();
   } catch { return null; }
@@ -27,7 +27,7 @@ export default async function InstructorProfilePage({ params }) {
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <a href="/"><Image src="/navbarlogo.png" alt="Mindful" width={40} height={40} className="h-10 w-auto" /></a>
           <div className="flex gap-4 text-sm">
-            <a href="/instructors" className="text-cream/70 hover:text-gold transition">← All providers</a>
+            <a href="/providers" className="text-cream/70 hover:text-gold transition">← All providers</a>
             <a href="/signup" className="btn-primary py-2 px-5">Start free trial</a>
           </div>
         </div>

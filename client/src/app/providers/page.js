@@ -4,7 +4,7 @@ const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
 
 async function fetchInstructors() {
   try {
-    const res = await fetch(`${API}/instructors`, { cache: 'no-store' });
+    const res = await fetch(`${API}/providers`, { cache: 'no-store' });
     if (!res.ok) return [];
     return res.json();
   } catch { return []; }
@@ -44,7 +44,7 @@ export default async function InstructorsPage() {
         ) : (
           <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-6">
             {instructors.map((i) => (
-              <a key={i.id} href={`/instructors/${i.id}`} className="card hover:border-gold/40 transition block text-center group">
+              <a key={i.id} href={`/providers/${i.id}`} className="card hover:border-gold/40 transition block text-center group">
                 <div className="w-20 h-20 rounded-full bg-gold/10 border border-gold/30 overflow-hidden flex items-center justify-center mx-auto mb-4">
                   {i.photoUrl
                     ? <img src={i.photoUrl.startsWith('http') ? i.photoUrl : `http://localhost:5000${i.photoUrl}`} alt={i.fullName} className="w-full h-full object-cover" />

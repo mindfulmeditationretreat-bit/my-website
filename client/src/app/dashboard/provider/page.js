@@ -6,7 +6,7 @@ async function fetchData() {
   const token = cookies().get('token')?.value;
   if (!token) return { users: [], unread: 0 };
   const [usersRes, notifRes] = await Promise.all([
-    fetch(`${apiUrl}/instructors/me/users`, { headers: { Cookie: `token=${token}` }, cache: 'no-store' }),
+    fetch(`${apiUrl}/providers/me/users`, { headers: { Cookie: `token=${token}` }, cache: 'no-store' }),
     fetch(`${apiUrl}/notifications`, { headers: { Cookie: `token=${token}` }, cache: 'no-store' }),
   ]);
   return {

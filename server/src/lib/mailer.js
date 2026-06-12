@@ -117,10 +117,10 @@ async function sendMail({ to, subject, title, html }) {
 const templates = {
   welcomeInstructor: (name) => ({
     subject: 'Welcome to Mindful — You\'re approved!',
-    title: `Welcome, ${name || 'Instructor'}.`,
-    html: `<p style="margin:0 0 18px;text-align:center">Great news — your instructor account has been <strong style="color:${COLORS.gold}">verified and approved</strong> by our team.</p>
+    title: `Welcome, ${name || 'Provider'}.`,
+    html: `<p style="margin:0 0 18px;text-align:center">Great news — your provider account has been <strong style="color:${COLORS.gold}">verified and approved</strong> by our team.</p>
            <p style="margin:0 0 22px;text-align:center;color:rgba(255,235,203,0.7)">You can now log in and start supporting members on their wellness journey.</p>
-           ${button(`${process.env.CLIENT_ORIGIN}/login`, 'Log in as Instructor')}`,
+           ${button(`${process.env.CLIENT_ORIGIN}/login`, 'Log in as Provider')}`,
   }),
   welcome: (name) => ({
     subject: 'Welcome to Mindful',

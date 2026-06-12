@@ -18,14 +18,14 @@ export default function InstructorUserDetailPage() {
 
   async function load() {
     try {
-      const d = await api.get(`/instructors/me/users/${id}`);
+      const d = await api.get(`/providers/me/users/${id}`);
       setData(d);
     } catch (e) { setError(e.message); }
   }
 
   async function loadProgress() {
     try {
-      const raw = await api.get(`/instructors/me/users/${id}/progress` + (progressFilter ? `?type=${progressFilter}` : ''));
+      const raw = await api.get(`/providers/me/users/${id}/progress` + (progressFilter ? `?type=${progressFilter}` : ''));
       setProgress(raw.entries ?? raw);
       if (raw.meditationStreak != null) setProgressStreak(raw.meditationStreak);
     } catch (e) { console.error(e); }
@@ -37,7 +37,7 @@ export default function InstructorUserDetailPage() {
   async function addNote(e) {
     e.preventDefault();
     if (!note.trim()) return;
-    await api.post(`/instructors/me/users/${id}/notes`, { body: note });
+    await api.post(`/providers/me/users/${id}/notes`, { body: note });
     setNote('');
     await load();
   }
@@ -47,7 +47,7 @@ export default function InstructorUserDetailPage() {
 
   return (
     <>
-      <Link href="/dashboard/instructor/users" className="text-cream/60 hover:text-gold text-sm">← Back</Link>
+      <Link href="/dashboard/provider/users" className="text-cream/60 hover:text-gold text-sm">← Back</Link>
 
       <div className="flex items-end justify-between mt-6 mb-6">
         <div>

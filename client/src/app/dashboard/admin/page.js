@@ -16,7 +16,7 @@ async function fetchStats() {
 
 const NAV_ITEMS = [
   { href: '/dashboard/admin/users',         title: 'Users',         desc: 'Create, edit, deactivate accounts and assign programs.' },
-  { href: '/dashboard/admin/instructors',   title: 'Providers',     desc: 'Manage providers, specialties and assignments.' },
+  { href: '/dashboard/admin/providers',     title: 'Providers',     desc: 'Manage providers, specialties and assignments.' },
   { href: '/dashboard/admin/programs',      title: 'Programs',      desc: 'Edit pricing, trial length and program details.' },
   { href: '/dashboard/admin/subscriptions', title: 'Subscriptions', desc: 'Track active, trialing and expired subscriptions.' },
   { href: '/dashboard/admin/resources',     title: 'Content',       desc: 'Upload and manage articles, videos, PDFs and audio.' },

@@ -152,7 +152,7 @@ async function updateUser(req, res, next) {
     if (beingApproved) {
       try {
         await sendMail({ to: existing.email, ...templates.welcomeInstructor(existing.fullName) });
-      } catch (e) { console.error('[updateUser] welcome instructor email failed', e.message); }
+      } catch (e) { console.error('[updateUser] welcome provider email failed', e.message); }
     }
 
     res.json({ message: 'Updated' });
@@ -185,9 +185,9 @@ async function assignInstructor(req, res, next) {
       .where(eq(subscriptions.id, subId));
     if (instructorId) {
       await notify(sub.userId, {
-        type: 'instructor_assigned',
-        title: 'An instructor has been assigned',
-        body: 'You can now message your instructor from the messages page.',
+        type: 'provider_assigned',
+        title: 'A provider has been assigned',
+        body: 'You can now message your provider from the messages page.',
         link: '/dashboard/messages',
       });
     }
@@ -311,7 +311,7 @@ async function broadcast(req, res, next) {
         : [];
     } else {
       recipients = await db.query.users.findMany({
-        where: (t, { eq }) => audience === 'users' ? eq(t.role, 'user') : audience === 'instructors' ? eq(t.role, 'instructor') : undefined,
+        where: (t, { eq }) => audience === 'users' ? eq(t.role, 'user') : audience === 'providers' ? eq(t.role, 'instructor') : undefined,
         columns: { id: true, email: true },
       });
     }

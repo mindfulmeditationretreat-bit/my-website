@@ -32,7 +32,7 @@ async function assignResource(req, res, next) {
     await notify(userId, {
       type: 'resource_assigned',
       title: `New resource assigned: ${resource.title}`,
-      body: note || `Your instructor has assigned you a new ${resource.type} resource.`,
+      body: note || `Your provider has assigned you a new ${resource.type} resource.`,
       link: `/dashboard/resources/${resource.id}`,
     });
 

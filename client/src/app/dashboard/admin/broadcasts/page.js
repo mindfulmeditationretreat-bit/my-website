@@ -5,7 +5,7 @@ import { api } from '@/lib/api';
 const AUDIENCES = [
   { value: 'all',         label: 'Everyone',           desc: 'All users + providers on the platform' },
   { value: 'users',       label: 'All users',           desc: 'Only regular members' },
-  { value: 'instructors', label: 'Providers only',      desc: 'Dieticians, meditation & counseling staff' },
+  { value: 'providers',   label: 'Providers only',      desc: 'Dieticians, meditation & counseling staff' },
   { value: 'trial',       label: 'Trial users only',    desc: 'Members currently on a free trial' },
 ];
 

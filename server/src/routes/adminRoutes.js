@@ -27,7 +27,7 @@ router.patch('/users/:id', updateUser);
 router.delete('/users/:id', deleteUser);
 
 router.get('/subscriptions', listSubscriptions);
-router.post('/subscriptions/:id/assign-instructor', assignInstructor);
+router.post('/subscriptions/:id/assign-provider', assignInstructor);
 router.post('/users/:id/assign-program', assignProgram);
 router.get('/users/:id/resources', listUserResources);
 router.post('/users/:id/resources', assignResource);

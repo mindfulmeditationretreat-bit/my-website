@@ -38,7 +38,7 @@ export const api = {
 
 export function dashboardPathFor(role) {
   if (role === 'admin') return '/dashboard/admin';
-  if (role === 'instructor') return '/dashboard/instructor';
+  if (role === 'instructor') return '/dashboard/provider';
   return '/dashboard';
 }
 

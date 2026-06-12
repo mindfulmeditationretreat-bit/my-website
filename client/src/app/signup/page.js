@@ -129,7 +129,7 @@ function SignupForm() {
           <p className="text-cream/40 text-xs leading-relaxed mb-7">
             Include your full name, professional certificates, government-issued ID, and any relevant qualifications. Once reviewed, an admin will approve your account.
           </p>
-          <Link href="/dashboard/instructor" className="btn-primary inline-block">Go to Dashboard</Link>
+          <Link href="/dashboard/provider" className="btn-primary inline-block">Go to Dashboard</Link>
         </div>
       </main>
     );
