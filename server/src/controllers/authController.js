@@ -62,8 +62,13 @@ async function signup(req, res, next) {
       if (bio) insertData.bio = bio;
       if (availability) insertData.availability = availability;
     }
+    if (role === 'instructor') insertData.active = false;
     const [{ id }] = await db.insert(users).values(insertData).$returningId();
     const user = await db.query.users.findFirst({ where: (t, { eq }) => eq(t.id, id) });
+
+    if (role === 'instructor') {
+      return res.status(201).json({ pending: true });
+    }
 
     let emailSent = false;
     try {
@@ -83,7 +88,12 @@ async function login(req, res, next) {
 
     const user = await db.query.users.findFirst({ where: (t, { eq }) => eq(t.email, email) });
     if (!user) return res.status(401).json({ message: 'Invalid credentials' });
-    if (!user.active) return res.status(403).json({ message: 'Account deactivated' });
+    if (!user.active) {
+      const msg = user.role === 'instructor'
+        ? 'Your account is pending admin approval'
+        : 'Account deactivated';
+      return res.status(403).json({ message: msg });
+    }
 
     const ok = await bcrypt.compare(password, user.passwordHash || '');
     if (!ok) return res.status(401).json({ message: 'Invalid credentials' });

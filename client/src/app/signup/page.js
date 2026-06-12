@@ -67,6 +67,7 @@ function SignupForm() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [pendingApproval, setPendingApproval] = useState(false);
 
   const isInstructor = role === 'instructor';
   const strength = passwordStrength(password);
@@ -93,11 +94,32 @@ function SignupForm() {
         if (availability.trim()) payload.availability = availability.trim();
       }
       const res = await api.post('/auth/signup', payload);
+      if (res?.pending) { setPendingApproval(true); return; }
       router.push(res.emailSent ? '/verify-email?sent=1' : '/verify-email?sent=0');
     } catch (err) {
       setError(err.message);
       setLoading(false);
     }
+  }
+
+  if (pendingApproval) {
+    return (
+      <main className="min-h-screen flex items-center justify-center px-6 py-12">
+        <div className="card w-full max-w-md text-center">
+          <div className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-6"
+            style={{ background: 'rgba(225,179,104,0.12)', border: '1px solid rgba(225,179,104,0.3)' }}>
+            <svg className="w-8 h-8 text-gold" fill="none" stroke="currentColor" strokeWidth={1.6} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
+          <h1 className="heading text-2xl font-light mb-3">Application received.</h1>
+          <p className="text-cream/60 text-sm leading-relaxed mb-6">
+            Your instructor account is pending admin review. You will be able to log in once an admin approves your account.
+          </p>
+          <Link href="/" className="btn-primary inline-block">Back to Home</Link>
+        </div>
+      </main>
+    );
   }
 
   return (
