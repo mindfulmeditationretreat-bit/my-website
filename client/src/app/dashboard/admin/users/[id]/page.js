@@ -49,17 +49,27 @@ export default function AdminUserEditPage() {
   const [form, setForm] = useState({});
   const [assignForm, setAssignForm] = useState({ programId: '', instructorId: '' });
   const [msg, setMsg] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
   async function load() {
-    const [u, instrs, progs] = await Promise.all([
-      api.get(`/admin/users/${id}`),
-      api.get('/instructors'),
-      api.get('/admin/programs'),
-    ]);
-    setUser(u);
-    setInstructors(instrs);
-    setPrograms(progs.filter((p) => p.active));
-    setForm({ fullName: u.fullName || '', role: u.role, active: u.active, expertise: u.expertise || '', bio: u.bio || '', availability: u.availability || '' });
+    setLoading(true);
+    setError('');
+    try {
+      const [u, instrs, progs] = await Promise.all([
+        api.get(`/admin/users/${id}`),
+        api.get('/instructors'),
+        api.get('/admin/programs'),
+      ]);
+      setUser(u);
+      setInstructors(instrs);
+      setPrograms(progs.filter((p) => p.active));
+      setForm({ fullName: u.fullName || '', role: u.role, active: u.active, expertise: u.expertise || '', bio: u.bio || '', availability: u.availability || '' });
+    } catch (err) {
+      setError(err.message || 'Failed to load user');
+    } finally {
+      setLoading(false);
+    }
   }
   useEffect(() => { load(); }, [id]);
 
@@ -97,7 +107,14 @@ export default function AdminUserEditPage() {
     router.push('/dashboard/admin/users');
   }
 
-  if (!user) return <p className="text-cream/60">Loading…</p>;
+  if (loading) return <p className="text-cream/60">Loading…</p>;
+  if (error) return (
+    <div className="card text-center py-12">
+      <p className="text-red-400 mb-4">{error}</p>
+      <button className="btn-primary" onClick={load}>Retry</button>
+    </div>
+  );
+  if (!user) return null;
 
   const enrolledProgramIds = new Set((user.subscriptions || []).map((s) => s.programId));
   const availablePrograms = programs.filter((p) => !enrolledProgramIds.has(p.id));
