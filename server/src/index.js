@@ -56,6 +56,7 @@ app.use('/api/users', userRoutes);
 app.use('/api/programs', programRoutes);
 app.use('/api/subscriptions', subscriptionRoutes);
 app.use('/api/providers', instructorRoutes);
+app.use('/api/instructors', instructorRoutes);
 app.use('/api/messages', messageRoutes);
 app.use('/api/resources', resourceRoutes);
 app.use('/api/notifications', notificationRoutes);
