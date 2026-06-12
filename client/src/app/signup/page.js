@@ -112,9 +112,22 @@ function SignupForm() {
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
           </div>
-          <h1 className="heading text-2xl font-light mb-3">Application received.</h1>
+          <h1 className="heading text-2xl font-light mb-2">Application received.</h1>
+          <p className="text-yellow-400/90 text-sm font-medium mb-5">
+            You are not verified yet.
+          </p>
           <p className="text-cream/60 text-sm leading-relaxed mb-6">
-            Your instructor account is pending admin review. You will be able to log in once an admin approves your account.
+            To complete your verification, please send an email with your proper credentials and supporting documents to:
+          </p>
+          <a href="mailto:info@mindful.com"
+            className="inline-flex items-center gap-2 rounded-xl border border-gold/30 bg-gold/5 px-5 py-3 text-gold font-medium text-sm hover:bg-gold/10 transition mb-6">
+            <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+            </svg>
+            info@mindful.com
+          </a>
+          <p className="text-cream/40 text-xs leading-relaxed mb-7">
+            Include your full name, professional certificates, government-issued ID, and any relevant qualifications. Once reviewed, an admin will approve your account.
           </p>
           <Link href="/" className="btn-primary inline-block">Back to Home</Link>
         </div>
