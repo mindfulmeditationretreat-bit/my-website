@@ -14,15 +14,22 @@ export default function AdminUsersPage() {
   const [q, setQ]           = useState('');
   const [role, setRole]     = useState('');
   const [loading, setLoading] = useState(true);
+  const [error, setError]   = useState('');
 
   async function load() {
     setLoading(true);
-    const qs = new URLSearchParams();
-    if (q)    qs.set('q', q);
-    if (role) qs.set('role', role);
-    const data = await api.get(`/admin/users?${qs.toString()}`);
-    setUsers(data);
-    setLoading(false);
+    setError('');
+    try {
+      const qs = new URLSearchParams();
+      if (q)    qs.set('q', q);
+      if (role) qs.set('role', role);
+      const data = await api.get(`/admin/users?${qs.toString()}`);
+      setUsers(Array.isArray(data) ? data : []);
+    } catch (err) {
+      setError(err.message || 'Failed to load users');
+    } finally {
+      setLoading(false);
+    }
   }
   useEffect(() => { load(); }, [role]);
 
@@ -67,6 +74,11 @@ export default function AdminUsersPage() {
       <div className="card overflow-hidden p-0">
         {loading ? (
           <p className="text-cream/50 p-6">Loading…</p>
+        ) : error ? (
+          <div className="text-center py-16">
+            <p className="text-red-400 text-sm mb-3">{error}</p>
+            <button onClick={load} className="btn-outline text-sm">Retry</button>
+          </div>
         ) : users.length === 0 ? (
           <div className="text-center py-16">
             <p className="text-cream/40 text-sm">No users found.</p>

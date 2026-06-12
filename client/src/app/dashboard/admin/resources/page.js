@@ -20,16 +20,21 @@ export default function AdminResourcesPage() {
 
   async function load() {
     setLoading(true);
-    const qs = new URLSearchParams();
-    if (programFilter) qs.set('programId', programFilter);
-    if (typeFilter)    qs.set('type', typeFilter);
-    const [r, p] = await Promise.all([
-      api.get(`/resources${qs.toString() ? '?' + qs : ''}`),
-      api.get('/admin/programs'),
-    ]);
-    setResources(r);
-    setPrograms(p);
-    setLoading(false);
+    try {
+      const qs = new URLSearchParams();
+      if (programFilter) qs.set('programId', programFilter);
+      if (typeFilter)    qs.set('type', typeFilter);
+      const [r, p] = await Promise.all([
+        api.get(`/resources${qs.toString() ? '?' + qs : ''}`),
+        api.get('/admin/programs'),
+      ]);
+      setResources(Array.isArray(r) ? r : []);
+      setPrograms(Array.isArray(p) ? p : []);
+    } catch (err) {
+      console.error('[resources] load failed', err.message);
+    } finally {
+      setLoading(false);
+    }
   }
   useEffect(() => { load(); }, [programFilter, typeFilter]);
 

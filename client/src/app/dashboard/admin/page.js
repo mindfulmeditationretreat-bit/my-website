@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { requireUser } from '@/lib/auth';
 
 async function fetchStats() {
-  const apiUrl = process.env.INTERNAL_API_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5050/api';
+  const apiUrl = process.env.INTERNAL_API_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
   const token = cookies().get('token')?.value;
   if (!token) return null;
   try {

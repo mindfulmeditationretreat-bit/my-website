@@ -13,9 +13,13 @@ export default function AdminSubscriptionsPage() {
   const [subs, setSubs]     = useState([]);
   const [filter, setFilter] = useState('all');
   const [loading, setLoading] = useState(true);
+  const [error, setError]   = useState('');
 
   useEffect(() => {
-    api.get('/admin/subscriptions').then((d) => { setSubs(d); setLoading(false); });
+    api.get('/admin/subscriptions')
+      .then((d) => { setSubs(Array.isArray(d) ? d : []); })
+      .catch((err) => setError(err.message || 'Failed to load'))
+      .finally(() => setLoading(false));
   }, []);
 
   const filtered = filter === 'all' ? subs : subs.filter((s) => s.status === filter);
