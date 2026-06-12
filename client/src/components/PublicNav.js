@@ -4,8 +4,9 @@ import Link from 'next/link';
 import Image from 'next/image';
 
 const LINKS = [
-  { href: '/#about',    label: 'About' },
-  { href: '/login',     label: 'Login' },
+  { href: '/#about',                label: 'About' },
+  { href: '/signup?role=instructor', label: 'For Instructors' },
+  { href: '/login',                 label: 'Login' },
 ];
 
 export default function PublicNav() {

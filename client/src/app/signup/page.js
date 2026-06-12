@@ -1,6 +1,6 @@
 'use client';
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { api, googleLoginUrl } from '@/lib/api';
 
@@ -40,7 +40,6 @@ function passwordStrength(pw) {
   if (/[A-Z]/.test(pw) && /[a-z]/.test(pw)) score++;
   if (/\d/.test(pw)) score++;
   if (/[^A-Za-z0-9]/.test(pw)) score++;
-  // Clamp to 0-4 buckets
   return Math.min(score, 4);
 }
 
@@ -52,29 +51,48 @@ const STRENGTH = [
   { label: 'Strong', color: 'bg-green-500' },
 ];
 
-export default function SignupPage() {
+function SignupForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const defaultRole = searchParams.get('role') === 'instructor' ? 'instructor' : 'user';
+
+  const [role, setRole] = useState(defaultRole);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
+  const [fullName, setFullName] = useState('');
+  const [expertise, setExpertise] = useState('');
+  const [bio, setBio] = useState('');
+  const [availability, setAvailability] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
+  const isInstructor = role === 'instructor';
   const strength = passwordStrength(password);
   const mismatch = confirm.length > 0 && confirm !== password;
-  const canSubmit = email && password.length >= 8 && password === confirm && !loading;
+  const canSubmit = email && password.length >= 8 && password === confirm && !loading
+    && (!isInstructor || fullName.trim());
+
+  function switchRole(r) {
+    setRole(r);
+    setError('');
+  }
 
   async function handleSubmit(e) {
     e.preventDefault();
-    if (password !== confirm) {
-      setError('Passwords do not match.');
-      return;
-    }
+    if (password !== confirm) { setError('Passwords do not match.'); return; }
     setLoading(true);
     setError('');
     try {
-      const res = await api.post('/auth/signup', { email, password });
+      const payload = { email, password, role };
+      if (fullName.trim()) payload.fullName = fullName.trim();
+      if (isInstructor) {
+        if (expertise.trim()) payload.expertise = expertise.trim();
+        if (bio.trim()) payload.bio = bio.trim();
+        if (availability.trim()) payload.availability = availability.trim();
+      }
+      const res = await api.post('/auth/signup', payload);
       router.push(res.emailSent ? '/verify-email?sent=1' : '/verify-email?sent=0');
     } catch (err) {
       setError(err.message);
@@ -85,23 +103,79 @@ export default function SignupPage() {
   return (
     <main className="min-h-screen flex items-center justify-center px-6 py-12">
       <div className="card w-full max-w-md">
-        <h1 className="heading text-3xl font-light mb-2">Begin your journey.</h1>
-        <p className="text-cream/60 mb-8">14-day free trial · No card required</p>
 
-        <a href={googleLoginUrl()} className="btn-outline w-full mb-4 gap-3">
-          <GoogleIcon /> Continue with Google
-        </a>
-        <div className="flex items-center gap-3 text-cream/40 text-xs my-4">
-          <div className="flex-1 h-px bg-gold/10" /> OR <div className="flex-1 h-px bg-gold/10" />
+        {/* Role toggle */}
+        <div className="flex rounded-xl border border-gold/20 bg-black/30 p-1 mb-7">
+          <button type="button" onClick={() => switchRole('user')}
+            className={`flex-1 py-2 text-sm font-medium rounded-lg transition ${role === 'user' ? 'bg-gold text-black' : 'text-cream/60 hover:text-cream'}`}>
+            Join as Member
+          </button>
+          <button type="button" onClick={() => switchRole('instructor')}
+            className={`flex-1 py-2 text-sm font-medium rounded-lg transition ${isInstructor ? 'bg-gold text-black' : 'text-cream/60 hover:text-cream'}`}>
+            Join as Instructor
+          </button>
         </div>
 
+        <h1 className="heading text-3xl font-light mb-2">
+          {isInstructor ? 'Become an instructor.' : 'Begin your journey.'}
+        </h1>
+        <p className="text-cream/60 mb-8">
+          {isInstructor
+            ? 'Share your expertise with the Mindful community.'
+            : '14-day free trial · No card required'}
+        </p>
+
+        {!isInstructor && (
+          <>
+            <a href={googleLoginUrl()} className="btn-outline w-full mb-4 gap-3">
+              <GoogleIcon /> Continue with Google
+            </a>
+            <div className="flex items-center gap-3 text-cream/40 text-xs my-4">
+              <div className="flex-1 h-px bg-gold/10" /> OR <div className="flex-1 h-px bg-gold/10" />
+            </div>
+          </>
+        )}
+
         <form onSubmit={handleSubmit} className="space-y-4" noValidate>
+
+          {isInstructor && (
+            <div>
+              <label htmlFor="fullName" className="label">Full Name *</label>
+              <input id="fullName" className="input" value={fullName}
+                onChange={(e) => setFullName(e.target.value)} required autoFocus
+                placeholder="Your full name" />
+            </div>
+          )}
+
           <div>
             <label htmlFor="email" className="label">Email</label>
             <input id="email" className="input" type="email" value={email}
               onChange={(e) => setEmail(e.target.value)} required autoComplete="email"
-              autoFocus placeholder="you@example.com" />
+              autoFocus={!isInstructor} placeholder="you@example.com" />
           </div>
+
+          {isInstructor && (
+            <>
+              <div>
+                <label htmlFor="expertise" className="label">Expertise</label>
+                <input id="expertise" className="input" value={expertise}
+                  onChange={(e) => setExpertise(e.target.value)}
+                  placeholder="e.g. Clinical Dietitian, Meditation Coach" />
+              </div>
+              <div>
+                <label htmlFor="availability" className="label">Availability</label>
+                <input id="availability" className="input" value={availability}
+                  onChange={(e) => setAvailability(e.target.value)}
+                  placeholder="e.g. Mon–Fri · 10am–6pm" />
+              </div>
+              <div>
+                <label htmlFor="bio" className="label">Bio</label>
+                <textarea id="bio" className="input" rows={3} value={bio}
+                  onChange={(e) => setBio(e.target.value)}
+                  placeholder="Tell us about your background and approach…" />
+              </div>
+            </>
+          )}
 
           <div>
             <label htmlFor="password" className="label">Password</label>
@@ -115,7 +189,6 @@ export default function SignupPage() {
                 <EyeIcon off={showPassword} />
               </button>
             </div>
-            {/* Strength meter */}
             {password.length > 0 && (
               <div className="mt-2">
                 <div className="flex gap-1">
@@ -148,14 +221,18 @@ export default function SignupPage() {
           )}
 
           <button className="btn-primary w-full" disabled={!canSubmit}>
-            {loading ? 'Creating account…' : 'Create account'}
+            {loading
+              ? 'Creating account…'
+              : isInstructor ? 'Apply as Instructor' : 'Create account'}
           </button>
 
-          <p className="text-cream/40 text-xs text-center leading-relaxed">
-            By creating an account you agree to our{' '}
-            <Link href="/terms" className="text-gold/80 hover:text-gold">Terms</Link> and{' '}
-            <Link href="/privacy" className="text-gold/80 hover:text-gold">Privacy Policy</Link>.
-          </p>
+          {!isInstructor && (
+            <p className="text-cream/40 text-xs text-center leading-relaxed">
+              By creating an account you agree to our{' '}
+              <Link href="/terms" className="text-gold/80 hover:text-gold">Terms</Link> and{' '}
+              <Link href="/privacy" className="text-gold/80 hover:text-gold">Privacy Policy</Link>.
+            </p>
+          )}
         </form>
 
         <p className="text-cream/60 text-sm text-center mt-6">
@@ -163,5 +240,13 @@ export default function SignupPage() {
         </p>
       </div>
     </main>
+  );
+}
+
+export default function SignupPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen" />}>
+      <SignupForm />
+    </Suspense>
   );
 }

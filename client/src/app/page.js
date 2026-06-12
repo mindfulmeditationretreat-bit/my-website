@@ -29,9 +29,9 @@ export default function Home() {
                 className="bg-gold text-black font-semibold text-sm px-8 py-3.5 rounded-full hover:bg-gold/90 transition">
                 Get Started
               </Link>
-              <Link href="/signup"
+              <Link href="/signup?role=instructor"
                 className="border border-gold/50 text-cream text-sm px-8 py-3.5 rounded-full hover:border-gold hover:text-gold transition">
-                Explore Services
+                Become an Instructor
               </Link>
             </div>
           </div>

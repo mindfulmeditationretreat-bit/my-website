@@ -46,15 +46,23 @@ async function sendVerificationEmail(user) {
 
 async function signup(req, res, next) {
   try {
-    const { email, password } = req.body;
+    const { email, password, role: reqRole, fullName, expertise, bio, availability } = req.body;
     if (!email || !password || password.length < 8) {
       return res.status(400).json({ message: 'Email and password (min 8 chars) required' });
     }
+    const role = reqRole === 'instructor' ? 'instructor' : 'user';
     const existing = await db.query.users.findFirst({ where: (t, { eq }) => eq(t.email, email) });
     if (existing) return res.status(409).json({ message: 'Email already registered' });
 
     const passwordHash = await bcrypt.hash(password, 10);
-    const [{ id }] = await db.insert(users).values({ email, passwordHash, role: 'user', updatedAt: new Date() }).$returningId();
+    const insertData = { email, passwordHash, role, updatedAt: new Date() };
+    if (fullName) insertData.fullName = fullName;
+    if (role === 'instructor') {
+      if (expertise) insertData.expertise = expertise;
+      if (bio) insertData.bio = bio;
+      if (availability) insertData.availability = availability;
+    }
+    const [{ id }] = await db.insert(users).values(insertData).$returningId();
     const user = await db.query.users.findFirst({ where: (t, { eq }) => eq(t.id, id) });
 
     let emailSent = false;
