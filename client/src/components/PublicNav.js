@@ -5,7 +5,7 @@ import Image from 'next/image';
 
 const LINKS = [
   { href: '/#about',                label: 'About' },
-  { href: '/signup?role=instructor', label: 'For Instructors' },
+  { href: '/signup?role=instructor', label: 'Become a Provider' },
   { href: '/login',                 label: 'Login' },
 ];
 
