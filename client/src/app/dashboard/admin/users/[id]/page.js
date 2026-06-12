@@ -59,7 +59,7 @@ export default function AdminUserEditPage() {
     setUser(u);
     setInstructors(instrs);
     setPrograms(progs.filter((p) => p.active));
-    setForm({ fullName: u.fullName || '', role: u.role, active: u.active, travelCountry: u.travelCountry || '', expertise: u.expertise || '', bio: u.bio || '', availability: u.availability || '' });
+    setForm({ fullName: u.fullName || '', role: u.role, active: u.active, expertise: u.expertise || '', bio: u.bio || '', availability: u.availability || '' });
   }
   useEffect(() => { load(); }, [id]);
 
@@ -151,12 +151,6 @@ export default function AdminUserEditPage() {
             <label className="label">Role</label>
             <Select options={ROLES} value={form.role} onChange={(v) => setForm({ ...form, role: v })} />
           </div>
-          {form.role === 'user' && (
-            <div className="md:col-span-2">
-              <label className="label">Interested country to travel</label>
-              <input className="input" placeholder="e.g. Japan, Switzerland…" value={form.travelCountry} onChange={(e) => setForm({ ...form, travelCountry: e.target.value })} />
-            </div>
-          )}
         </div>
 
         {form.role === 'instructor' && (

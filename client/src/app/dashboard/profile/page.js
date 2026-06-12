@@ -59,7 +59,6 @@ export default function ProfilePage() {
       gender: u.gender || '',
       address: u.address || '',
       phone: u.phone || '',
-      travelCountry: u.travelCountry || '',
       bio: u.bio || '',
       expertise: u.expertise || '',
       availability: u.availability || '',
@@ -190,12 +189,13 @@ export default function ProfilePage() {
               <div className="min-w-0">
                 <h2 className="heading text-xl sm:text-2xl leading-tight break-words">{me.fullName || 'Your name'}</h2>
                 <p className="text-cream/60 text-sm break-all">{me.email}</p>
-                {me.emailVerified ? (
+                {me.emailVerified && (
                   <span className="inline-flex items-center gap-1.5 text-green-400 text-xs mt-1.5">
                     <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
                     Verified
                   </span>
-                ) : (
+                )}
+                {!me.emailVerified && me.role === 'user' && (
                   <button type="button" onClick={resendVerification} className="text-gold text-xs mt-1.5 hover:underline">
                     Email not verified · Resend
                   </button>
@@ -209,7 +209,6 @@ export default function ProfilePage() {
             <ViewField label="Age" value={me.age} />
             <ViewField label="Gender" value={genderLabel(me.gender)} />
             <ViewField label="Phone" value={me.phone} />
-            <ViewField label="Interested country" value={me.travelCountry} />
             <ViewField label="Address" value={me.address} />
           </div>
 
@@ -257,7 +256,7 @@ export default function ProfilePage() {
             <div>
               <label className="label">Email</label>
               <input className="input opacity-60" value={me.email} disabled />
-              {!me.emailVerified && (
+              {!me.emailVerified && me.role === 'user' && (
                 <button type="button" onClick={resendVerification} className="text-gold text-xs mt-1 hover:underline">Resend verification email</button>
               )}
             </div>
@@ -276,10 +275,6 @@ export default function ProfilePage() {
             <div>
               <label className="label">Phone</label>
               <input className="input" type="tel" placeholder="+1 9435679832" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
-            </div>
-            <div>
-              <label className="label">Interested country to travel</label>
-              <input className="input" placeholder="e.g. Japan, Nepal…" value={form.travelCountry} onChange={(e) => setForm({ ...form, travelCountry: e.target.value })} />
             </div>
             <div className="md:col-span-2">
               <label className="label">Address</label>

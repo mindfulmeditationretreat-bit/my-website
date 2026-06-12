@@ -19,7 +19,7 @@ export default function AdminCreateUserPage() {
   const router = useRouter();
   const [form, setForm] = useState({
     email: '', fullName: '', role: 'user',
-    age: '', gender: '', travelCountry: '', wellnessGoals: [],
+    age: '', gender: '', wellnessGoals: [],
     expertise: '', bio: '', availability: '',
   });
   const [busy, setBusy] = useState(false);
@@ -122,10 +122,6 @@ export default function AdminCreateUserPage() {
                   <option value="non_binary">Non-binary</option>
                   <option value="prefer_not_to_say">Prefer not to say</option>
                 </select>
-              </div>
-              <div>
-                <label className="label">Interested country to travel</label>
-                <input className="input" placeholder="e.g. Japan, Switzerland…" value={form.travelCountry} onChange={(e) => setForm({ ...form, travelCountry: e.target.value })} />
               </div>
             </div>
           </div>

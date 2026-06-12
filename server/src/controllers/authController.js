@@ -62,7 +62,10 @@ async function signup(req, res, next) {
       if (bio) insertData.bio = bio;
       if (availability) insertData.availability = availability;
     }
-    if (role === 'instructor') insertData.active = false;
+    if (role === 'instructor') {
+      insertData.active = false;
+      insertData.onboarded = true;
+    }
     const [{ id }] = await db.insert(users).values(insertData).$returningId();
     const user = await db.query.users.findFirst({ where: (t, { eq }) => eq(t.id, id) });
 
