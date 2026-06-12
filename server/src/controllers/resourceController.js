@@ -1,6 +1,6 @@
 const { eq, and, inArray } = require('drizzle-orm');
 const { db } = require('../lib/db');
-const { resources, subscriptions } = require('../db/schema');
+const { resources, subscriptions, programs } = require('../db/schema');
 const { deleteFile } = require('../middleware/upload');
 const { userHasActiveAccess } = require('./subscriptionController');
 const { notify } = require('../lib/notify');
@@ -22,24 +22,26 @@ async function listResources(req, res, next) {
         return conds.length === 0 ? undefined : conds.length === 1 ? conds[0] : and(...conds);
       },
       orderBy: (t, { desc }) => desc(t.createdAt),
-      columns: {
-        id: true, title: true, description: true, type: true, category: true,
-        isPremium: true, programId: true, createdAt: true,
-      },
-      with: { program: { columns: { id: true, name: true } } },
+      columns: { id: true, title: true, description: true, type: true, category: true, isPremium: true, programId: true, createdAt: true },
     });
-    res.json(rows);
+    const progIds = [...new Set(rows.map(r => r.programId).filter(Boolean))];
+    const progsData = progIds.length
+      ? await db.query.programs.findMany({ where: (t, { inArray }) => inArray(t.id, progIds), columns: { id: true, name: true } })
+      : [];
+    const progMap = Object.fromEntries(progsData.map(p => [p.id, p]));
+    res.json(rows.map(r => ({ ...r, program: r.programId ? progMap[r.programId] || null : null })));
   } catch (err) { next(err); }
 }
 
 async function getResource(req, res, next) {
   try {
     const id = Number(req.params.id);
-    const resource = await db.query.resources.findFirst({
-      where: (t, { eq }) => eq(t.id, id),
-      with: { program: { columns: { id: true, name: true } } },
-    });
+    const resource = await db.query.resources.findFirst({ where: (t, { eq }) => eq(t.id, id) });
     if (!resource) return res.status(404).json({ message: 'Not found' });
+    const prog = resource.programId
+      ? await db.query.programs.findFirst({ where: (t, { eq }) => eq(t.id, resource.programId), columns: { id: true, name: true } })
+      : null;
+    Object.assign(resource, { program: prog });
 
     if (resource.isPremium) {
       if (!req.user) return res.status(401).json({ message: 'Sign in to access premium content' });
@@ -77,28 +79,31 @@ async function createResource(req, res, next) {
 
     // Notify subscribers (fire-and-forget)
     const programCategory = category === 'general' ? null : category;
-    db.query.subscriptions.findMany({
-      where: (t, { inArray, eq, and }) => {
-        const base = inArray(t.status, ['trialing', 'active']);
-        if (!programCategory) return base;
-        return base; // programId filter handled below via join
-      },
-      with: { program: { columns: { category: true } } },
-      columns: { userId: true },
-    }).then((subs) => {
-      const filtered = programCategory
-        ? subs.filter((s) => s.program?.category === programCategory)
-        : subs;
-      const ids = [...new Set(filtered.map((s) => s.userId))];
-      ids.forEach((userId) => {
-        notify(userId, {
+    (async () => {
+      try {
+        const activeSubs = await db.query.subscriptions.findMany({
+          where: (t, { inArray }) => inArray(t.status, ['trialing', 'active']),
+          columns: { userId: true, programId: true },
+        });
+        let notifyIds;
+        if (programCategory) {
+          const subProgIds = [...new Set(activeSubs.map(s => s.programId))];
+          const subProgs = subProgIds.length
+            ? await db.query.programs.findMany({ where: (t, { inArray }) => inArray(t.id, subProgIds), columns: { id: true, category: true } })
+            : [];
+          const matchingProgIds = new Set(subProgs.filter(p => p.category === programCategory).map(p => p.id));
+          notifyIds = [...new Set(activeSubs.filter(s => matchingProgIds.has(s.programId)).map(s => s.userId))];
+        } else {
+          notifyIds = [...new Set(activeSubs.map(s => s.userId))];
+        }
+        notifyIds.forEach(userId => notify(userId, {
           type: 'new_resource',
           title: `New resource: ${title}`,
           body: description || `A new ${type} has been added to the ${category} library.`,
           link: `/dashboard/resources/${resource.id}`,
-        }).catch(() => {});
-      });
-    }).catch(() => {});
+        }).catch(() => {}));
+      } catch { /* ignore notification errors */ }
+    })();
 
     res.status(201).json(resource);
   } catch (err) { next(err); }

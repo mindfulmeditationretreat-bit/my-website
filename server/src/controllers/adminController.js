@@ -1,5 +1,5 @@
 const bcrypt = require('bcryptjs');
-const { eq, and, or, like, count, inArray } = require('drizzle-orm');
+const { eq, and, or, like, count, inArray, desc } = require('drizzle-orm');
 const { db } = require('../lib/db');
 const { users, subscriptions, programs, notifications } = require('../db/schema');
 const { sendMail, templates } = require('../lib/mailer');
@@ -13,11 +13,16 @@ async function stats(_req, res, next) {
       db.select({ trialSubs: count() }).from(subscriptions).where(eq(subscriptions.status, 'trialing')),
       db.select({ instructorCount: count() }).from(users).where(eq(users.role, 'instructor')),
     ]);
-    const activeSubs_ = await db.query.subscriptions.findMany({
+    const activeSubsList = await db.query.subscriptions.findMany({
       where: (t, { eq }) => eq(t.status, 'active'),
-      with: { program: { columns: { priceCents: true } } },
+      columns: { programId: true },
     });
-    const revenueCents = activeSubs_.reduce((acc, s) => acc + (s.program?.priceCents || 0), 0);
+    const revProgIds = [...new Set(activeSubsList.map(s => s.programId))];
+    const revProgs = revProgIds.length
+      ? await db.query.programs.findMany({ where: (t, { inArray }) => inArray(t.id, revProgIds), columns: { id: true, priceCents: true } })
+      : [];
+    const priceMap = Object.fromEntries(revProgs.map(p => [p.id, p.priceCents]));
+    const revenueCents = activeSubsList.reduce((acc, s) => acc + (priceMap[s.programId] || 0), 0);
     const total = Number(activeSubs) + Number(trialSubs);
     const conversion = total > 0 ? Math.round((Number(activeSubs) / total) * 100) : 0;
     res.json({
@@ -54,21 +59,26 @@ async function listUsers(req, res, next) {
 async function getUser(req, res, next) {
   try {
     const id = Number(req.params.id);
-    // Split into two queries to avoid MariaDB json_arrayagg incompatibility
-    // that Drizzle generates when nesting a many-relation with its own with clause.
     const [user, subs] = await Promise.all([
       db.query.users.findFirst({ where: (t, { eq }) => eq(t.id, id) }),
-      db.query.subscriptions.findMany({
-        where: (t, { eq }) => eq(t.userId, id),
-        with: {
-          program: true,
-          instructor: { columns: { id: true, fullName: true } },
-        },
-      }),
+      db.query.subscriptions.findMany({ where: (t, { eq }) => eq(t.userId, id) }),
     ]);
     if (!user) return res.status(404).json({ message: 'Not found' });
+    const progIds = [...new Set(subs.map(s => s.programId))];
+    const instrIds = [...new Set(subs.map(s => s.instructorId).filter(Boolean))];
+    const [progsData, instrsData] = await Promise.all([
+      progIds.length ? db.query.programs.findMany({ where: (t, { inArray }) => inArray(t.id, progIds) }) : [],
+      instrIds.length ? db.query.users.findMany({ where: (t, { inArray }) => inArray(t.id, instrIds), columns: { id: true, fullName: true } }) : [],
+    ]);
+    const progMap = Object.fromEntries(progsData.map(p => [p.id, p]));
+    const instrMap = Object.fromEntries(instrsData.map(i => [i.id, i]));
+    const subsWithDetails = subs.map(s => ({
+      ...s,
+      program: progMap[s.programId] || null,
+      instructor: s.instructorId ? instrMap[s.instructorId] || null : null,
+    }));
     const { passwordHash, ...safeUser } = user;
-    res.json({ ...safeUser, subscriptions: subs });
+    res.json({ ...safeUser, subscriptions: subsWithDetails });
   } catch (err) { next(err); }
 }
 
@@ -187,15 +197,24 @@ async function assignInstructor(req, res, next) {
 
 async function listSubscriptions(_req, res, next) {
   try {
-    const subs = await db.query.subscriptions.findMany({
-      orderBy: (t, { desc }) => desc(t.createdAt),
-      with: {
-        user:       { columns: { id: true, email: true, fullName: true } },
-        program:    { columns: { id: true, name: true, slug: true, priceCents: true } },
-        instructor: { columns: { id: true, fullName: true } },
-      },
-    });
-    res.json(subs);
+    const subs = await db.query.subscriptions.findMany({ orderBy: (t, { desc }) => desc(t.createdAt) });
+    const userIds = [...new Set(subs.map(s => s.userId))];
+    const progIds = [...new Set(subs.map(s => s.programId))];
+    const instrIds = [...new Set(subs.map(s => s.instructorId).filter(Boolean))];
+    const [usersData, progsData, instrsData] = await Promise.all([
+      userIds.length ? db.query.users.findMany({ where: (t, { inArray }) => inArray(t.id, userIds), columns: { id: true, email: true, fullName: true } }) : [],
+      progIds.length ? db.query.programs.findMany({ where: (t, { inArray }) => inArray(t.id, progIds), columns: { id: true, name: true, slug: true, priceCents: true } }) : [],
+      instrIds.length ? db.query.users.findMany({ where: (t, { inArray }) => inArray(t.id, instrIds), columns: { id: true, fullName: true } }) : [],
+    ]);
+    const userMap = Object.fromEntries(usersData.map(u => [u.id, u]));
+    const progMap = Object.fromEntries(progsData.map(p => [p.id, p]));
+    const instrMap = Object.fromEntries(instrsData.map(i => [i.id, i]));
+    res.json(subs.map(s => ({
+      ...s,
+      user: userMap[s.userId] || null,
+      program: progMap[s.programId] || null,
+      instructor: s.instructorId ? instrMap[s.instructorId] || null : null,
+    })));
   } catch (err) { next(err); }
 }
 

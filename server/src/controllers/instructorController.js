@@ -1,6 +1,6 @@
-const { eq, and } = require('drizzle-orm');
+const { eq, and, inArray, desc } = require('drizzle-orm');
 const { db } = require('../lib/db');
-const { instructorNotes, progressEntries } = require('../db/schema');
+const { users, programs, subscriptions, instructorNotes, progressEntries } = require('../db/schema');
 
 async function listInstructors(_req, res, next) {
   try {
@@ -28,13 +28,17 @@ async function myAssignedUsers(req, res, next) {
   try {
     const subs = await db.query.subscriptions.findMany({
       where: (t, { eq }) => eq(t.instructorId, req.user.id),
-      with: {
-        user:    { columns: { id: true, email: true, fullName: true, photoUrl: true, wellnessGoals: true } },
-        program: { columns: { id: true, name: true, slug: true } },
-      },
       orderBy: (t, { desc }) => desc(t.createdAt),
     });
-    res.json(subs);
+    const userIds = [...new Set(subs.map(s => s.userId))];
+    const progIds = [...new Set(subs.map(s => s.programId))];
+    const [usersData, progsData] = await Promise.all([
+      userIds.length ? db.query.users.findMany({ where: (t, { inArray }) => inArray(t.id, userIds), columns: { id: true, email: true, fullName: true, photoUrl: true, wellnessGoals: true } }) : [],
+      progIds.length ? db.query.programs.findMany({ where: (t, { inArray }) => inArray(t.id, progIds), columns: { id: true, name: true, slug: true } }) : [],
+    ]);
+    const userMap = Object.fromEntries(usersData.map(u => [u.id, u]));
+    const progMap = Object.fromEntries(progsData.map(p => [p.id, p]));
+    res.json(subs.map(s => ({ ...s, user: userMap[s.userId] || null, program: progMap[s.programId] || null })));
   } catch (err) { next(err); }
 }
 
@@ -43,19 +47,20 @@ async function getAssignedUser(req, res, next) {
     const userId = Number(req.params.id);
     const sub = await db.query.subscriptions.findFirst({
       where: (t, { eq, and }) => and(eq(t.userId, userId), eq(t.instructorId, req.user.id)),
-      with: {
-        user: { columns: { id: true, email: true, fullName: true, photoUrl: true, age: true, gender: true, wellnessGoals: true } },
-        program: true,
-      },
     });
     if (!sub) return res.status(404).json({ message: 'Not found or not assigned to you' });
 
-    const notes = await db.query.instructorNotes.findMany({
-      where: (t, { eq }) => eq(t.userId, userId),
-      orderBy: (t, { desc }) => desc(t.createdAt),
-      with: { author: { columns: { id: true, fullName: true } } },
-    });
-    res.json({ ...sub, notes });
+    const [userRow, progRow, notes] = await Promise.all([
+      db.query.users.findFirst({ where: (t, { eq }) => eq(t.id, userId), columns: { id: true, email: true, fullName: true, photoUrl: true, age: true, gender: true, wellnessGoals: true } }),
+      db.query.programs.findFirst({ where: (t, { eq }) => eq(t.id, sub.programId) }),
+      db.query.instructorNotes.findMany({ where: (t, { eq }) => eq(t.userId, userId), orderBy: (t, { desc }) => desc(t.createdAt) }),
+    ]);
+    const authorIds = [...new Set(notes.map(n => n.authorId))];
+    const authorsData = authorIds.length
+      ? await db.query.users.findMany({ where: (t, { inArray }) => inArray(t.id, authorIds), columns: { id: true, fullName: true } })
+      : [];
+    const authorMap = Object.fromEntries(authorsData.map(a => [a.id, a]));
+    res.json({ ...sub, user: userRow, program: progRow, notes: notes.map(n => ({ ...n, author: authorMap[n.authorId] || null })) });
   } catch (err) { next(err); }
 }
 

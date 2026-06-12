@@ -1,6 +1,6 @@
-const { eq, and } = require('drizzle-orm');
+const { eq, and, inArray, desc } = require('drizzle-orm');
 const { db } = require('../lib/db');
-const { userResources } = require('../db/schema');
+const { userResources, resources, users } = require('../db/schema');
 const { notify } = require('../lib/notify');
 
 async function assignResource(req, res, next) {
@@ -27,10 +27,7 @@ async function assignResource(req, res, next) {
       assignedById: req.user.id,
       note: note || null,
     }).$returningId();
-    const assignment = await db.query.userResources.findFirst({
-      where: (t, { eq }) => eq(t.id, id),
-      with: { resource: true },
-    });
+    const assignment = await db.query.userResources.findFirst({ where: (t, { eq }) => eq(t.id, id) });
 
     await notify(userId, {
       type: 'resource_assigned',
@@ -57,13 +54,21 @@ async function listUserResources(req, res, next) {
     const userId = Number(req.params.id);
     const assignments = await db.query.userResources.findMany({
       where: (t, { eq }) => eq(t.userId, userId),
-      with: {
-        resource: { columns: { id: true, title: true, description: true, type: true, category: true, isPremium: true } },
-        assignedBy: { columns: { id: true, fullName: true } },
-      },
       orderBy: (t, { desc }) => desc(t.createdAt),
     });
-    res.json(assignments);
+    const resourceIds = [...new Set(assignments.map(a => a.resourceId))];
+    const assignedByIds = [...new Set(assignments.map(a => a.assignedById).filter(Boolean))];
+    const [resourcesData, assignedByData] = await Promise.all([
+      resourceIds.length ? db.query.resources.findMany({ where: (t, { inArray }) => inArray(t.id, resourceIds), columns: { id: true, title: true, description: true, type: true, category: true, isPremium: true } }) : [],
+      assignedByIds.length ? db.query.users.findMany({ where: (t, { inArray }) => inArray(t.id, assignedByIds), columns: { id: true, fullName: true } }) : [],
+    ]);
+    const resourceMap = Object.fromEntries(resourcesData.map(r => [r.id, r]));
+    const assignedByMap = Object.fromEntries(assignedByData.map(u => [u.id, u]));
+    res.json(assignments.map(a => ({
+      ...a,
+      resource: resourceMap[a.resourceId] || null,
+      assignedBy: a.assignedById ? assignedByMap[a.assignedById] || null : null,
+    })));
   } catch (err) { next(err); }
 }
 
@@ -71,13 +76,21 @@ async function myAssignedResources(req, res, next) {
   try {
     const assignments = await db.query.userResources.findMany({
       where: (t, { eq }) => eq(t.userId, req.user.id),
-      with: {
-        resource: { columns: { id: true, title: true, description: true, type: true, category: true, isPremium: true, url: true } },
-        assignedBy: { columns: { id: true, fullName: true } },
-      },
       orderBy: (t, { desc }) => desc(t.createdAt),
     });
-    res.json(assignments);
+    const resourceIds = [...new Set(assignments.map(a => a.resourceId))];
+    const assignedByIds = [...new Set(assignments.map(a => a.assignedById).filter(Boolean))];
+    const [resourcesData, assignedByData] = await Promise.all([
+      resourceIds.length ? db.query.resources.findMany({ where: (t, { inArray }) => inArray(t.id, resourceIds), columns: { id: true, title: true, description: true, type: true, category: true, isPremium: true, url: true } }) : [],
+      assignedByIds.length ? db.query.users.findMany({ where: (t, { inArray }) => inArray(t.id, assignedByIds), columns: { id: true, fullName: true } }) : [],
+    ]);
+    const resourceMap = Object.fromEntries(resourcesData.map(r => [r.id, r]));
+    const assignedByMap = Object.fromEntries(assignedByData.map(u => [u.id, u]));
+    res.json(assignments.map(a => ({
+      ...a,
+      resource: resourceMap[a.resourceId] || null,
+      assignedBy: a.assignedById ? assignedByMap[a.assignedById] || null : null,
+    })));
   } catch (err) { next(err); }
 }
 

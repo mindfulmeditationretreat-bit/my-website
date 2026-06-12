@@ -1,6 +1,6 @@
-const { eq, and, or, isNull, count } = require('drizzle-orm');
+const { eq, and, or, isNull, count, inArray } = require('drizzle-orm');
 const { db } = require('../lib/db');
-const { messages, subscriptions } = require('../db/schema');
+const { messages, subscriptions, users } = require('../db/schema');
 const { notify } = require('../lib/notify');
 const { getIO } = require('../lib/socket');
 
@@ -10,16 +10,18 @@ async function listConversations(req, res, next) {
     const allMessages = await db.query.messages.findMany({
       where: (t, { eq, or }) => or(eq(t.senderId, userId), eq(t.recipientId, userId)),
       orderBy: (t, { desc }) => desc(t.createdAt),
-      with: {
-        sender:    { columns: { id: true, fullName: true, photoUrl: true } },
-        recipient: { columns: { id: true, fullName: true, photoUrl: true } },
-      },
     });
+    const peerIds = [...new Set(allMessages.map(m => m.senderId === userId ? m.recipientId : m.senderId))];
+    const peersData = peerIds.length
+      ? await db.query.users.findMany({ where: (t, { inArray }) => inArray(t.id, peerIds), columns: { id: true, fullName: true, photoUrl: true } })
+      : [];
+    const peerMap = Object.fromEntries(peersData.map(u => [u.id, u]));
 
     const map = new Map();
     for (const m of allMessages) {
-      const other = m.senderId === userId ? m.recipient : m.sender;
-      if (!map.has(other.id)) {
+      const otherId = m.senderId === userId ? m.recipientId : m.senderId;
+      const other = peerMap[otherId];
+      if (other && !map.has(other.id)) {
         const [{ value: unread }] = await db.select({ value: count() }).from(messages)
           .where(and(eq(messages.senderId, other.id), eq(messages.recipientId, userId), isNull(messages.readAt)));
         map.set(other.id, { peer: other, lastMessage: m, unread: Number(unread) });
@@ -78,10 +80,11 @@ async function sendMessage(req, res, next) {
       fileUrl: fileUrl || null,
       fileName: fileName || null,
     }).$returningId();
-    const message = await db.query.messages.findFirst({
-      where: (t, { eq }) => eq(t.id, id),
-      with: { sender: { columns: { id: true, fullName: true, photoUrl: true } } },
-    });
+    const [msgData, senderRows] = await Promise.all([
+      db.query.messages.findFirst({ where: (t, { eq }) => eq(t.id, id) }),
+      db.query.users.findMany({ where: (t, { eq }) => eq(t.id, req.user.id), columns: { id: true, fullName: true, photoUrl: true } }),
+    ]);
+    const message = { ...msgData, sender: senderRows[0] || null };
 
     const io = getIO();
     if (io) io.to(`user:${recipient.id}`).emit('new_message', message);

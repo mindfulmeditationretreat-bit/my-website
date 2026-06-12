@@ -1,4 +1,4 @@
-const { eq, and, inArray, count } = require('drizzle-orm');
+const { eq, and, inArray, count, desc } = require('drizzle-orm');
 const { db } = require('../lib/db');
 const { subscriptions, programs, users, notifications } = require('../db/schema');
 const { sendMail, templates } = require('../lib/mailer');
@@ -24,12 +24,10 @@ async function startTrial(req, res, next) {
       trialEndsAt,
       updatedAt: now,
     }).$returningId();
-    const sub = await db.query.subscriptions.findFirst({
-      where: (t, { eq }) => eq(t.id, id),
-      with: { program: true },
-    });
-
-    const user = await db.query.users.findFirst({ where: (t, { eq }) => eq(t.id, req.user.id) });
+    const [sub, user] = await Promise.all([
+      db.query.subscriptions.findFirst({ where: (t, { eq }) => eq(t.id, id) }),
+      db.query.users.findFirst({ where: (t, { eq }) => eq(t.id, req.user.id) }),
+    ]);
     try {
       const tpl = templates.trialStarted(program.name, program.trialDays);
       await sendMail({ to: user.email, ...tpl });
@@ -43,7 +41,7 @@ async function startTrial(req, res, next) {
       link: '/dashboard/programs',
     });
 
-    res.status(201).json(sub);
+    res.status(201).json({ ...sub, program });
   } catch (err) { next(err); }
 }
 
@@ -51,13 +49,21 @@ async function listMySubscriptions(req, res, next) {
   try {
     const subs = await db.query.subscriptions.findMany({
       where: (t, { eq }) => eq(t.userId, req.user.id),
-      with: {
-        program: true,
-        instructor: { columns: { id: true, fullName: true, photoUrl: true, expertise: true, bio: true, availability: true } },
-      },
       orderBy: (t, { desc }) => desc(t.createdAt),
     });
-    res.json(subs);
+    const progIds = [...new Set(subs.map(s => s.programId))];
+    const instrIds = [...new Set(subs.map(s => s.instructorId).filter(Boolean))];
+    const [progsData, instrsData] = await Promise.all([
+      progIds.length ? db.query.programs.findMany({ where: (t, { inArray }) => inArray(t.id, progIds) }) : [],
+      instrIds.length ? db.query.users.findMany({ where: (t, { inArray }) => inArray(t.id, instrIds), columns: { id: true, fullName: true, photoUrl: true, expertise: true, bio: true, availability: true } }) : [],
+    ]);
+    const progMap = Object.fromEntries(progsData.map(p => [p.id, p]));
+    const instrMap = Object.fromEntries(instrsData.map(i => [i.id, i]));
+    res.json(subs.map(s => ({
+      ...s,
+      program: progMap[s.programId] || null,
+      instructor: s.instructorId ? instrMap[s.instructorId] || null : null,
+    })));
   } catch (err) { next(err); }
 }
 
