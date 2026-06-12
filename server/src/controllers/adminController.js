@@ -123,6 +123,10 @@ async function updateUser(req, res, next) {
   try {
     const id = Number(req.params.id);
     const { fullName, role, active, travelCountry, expertise, bio, availability } = req.body;
+
+    const existing = await db.query.users.findFirst({ where: (t, { eq }) => eq(t.id, id) });
+    if (!existing) return res.status(404).json({ message: 'Not found' });
+
     const data = { updatedAt: new Date() };
     if (fullName !== undefined) data.fullName = fullName;
     if (role !== undefined) data.role = role;
@@ -132,6 +136,14 @@ async function updateUser(req, res, next) {
     if (bio !== undefined) data.bio = bio;
     if (availability !== undefined) data.availability = availability;
     await db.update(users).set(data).where(eq(users.id, id));
+
+    const beingApproved = active === true && !existing.active && existing.role === 'instructor';
+    if (beingApproved) {
+      try {
+        await sendMail({ to: existing.email, ...templates.welcomeInstructor(existing.fullName) });
+      } catch (e) { console.error('[updateUser] welcome instructor email failed', e.message); }
+    }
+
     res.json({ message: 'Updated' });
   } catch (err) { next(err); }
 }
