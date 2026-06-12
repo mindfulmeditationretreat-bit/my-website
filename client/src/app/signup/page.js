@@ -147,12 +147,12 @@ function SignupForm() {
           </button>
           <button type="button" onClick={() => switchRole('instructor')}
             className={`flex-1 py-2 text-sm font-medium rounded-lg transition ${isInstructor ? 'bg-gold text-black' : 'text-cream/60 hover:text-cream'}`}>
-            Join as Instructor
+            Join as Provider
           </button>
         </div>
 
         <h1 className="heading text-3xl font-light mb-2">
-          {isInstructor ? 'Become an instructor.' : 'Begin your journey.'}
+          {isInstructor ? 'Become a provider.' : 'Begin your journey.'}
         </h1>
         <p className="text-cream/60 mb-8">
           {isInstructor
@@ -258,7 +258,7 @@ function SignupForm() {
           <button className="btn-primary w-full" disabled={!canSubmit}>
             {loading
               ? 'Creating account…'
-              : isInstructor ? 'Apply as Instructor' : 'Create account'}
+              : isInstructor ? 'Apply as Provider' : 'Create account'}
           </button>
 
           {!isInstructor && (

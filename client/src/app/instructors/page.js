@@ -10,7 +10,7 @@ async function fetchInstructors() {
   } catch { return []; }
 }
 
-export const metadata = { title: 'Our Instructors — Mindful' };
+export const metadata = { title: 'Our Providers — Mindful' };
 
 export default async function InstructorsPage() {
   const instructors = await fetchInstructors();
@@ -29,7 +29,7 @@ export default async function InstructorsPage() {
 
       <div className="max-w-6xl mx-auto px-6 py-20">
         <p className="text-gold tracking-[0.3em] text-xs uppercase mb-3">Our team</p>
-        <h1 className="heading text-5xl font-light mb-4">Expert instructors</h1>
+        <h1 className="heading text-5xl font-light mb-4">Expert providers</h1>
         <p className="text-cream/60 mb-16 max-w-xl">Each member is paired with a certified specialist who designs a plan around their unique wellness goals.</p>
 
         {instructors.length === 0 ? (

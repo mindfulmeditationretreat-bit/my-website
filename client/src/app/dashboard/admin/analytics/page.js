@@ -84,7 +84,7 @@ export default function AdminAnalyticsPage() {
           { label: 'Total members',  value: total,    color: 'text-cream' },
           { label: 'Active subs',    value: active,   color: 'text-green-400' },
           { label: 'On trial',       value: trial,    color: 'text-gold' },
-          { label: 'Instructors',    value: instrCount, color: 'text-blue-300' },
+          { label: 'Providers',      value: instrCount, color: 'text-blue-300' },
           { label: 'Conversion',     value: `${conv}%`, color: 'text-gold' },
           { label: 'Revenue (NPR)',  value: revenue > 0 ? revenue.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) : '—', color: 'text-gold' },
         ].map((k) => (
@@ -154,7 +154,7 @@ export default function AdminAnalyticsPage() {
         <div className="space-y-4">
           <Bar label="Active subs"  value={active}     max={maxBar} color="bg-green-500/70" />
           <Bar label="Trialing"     value={trial}      max={maxBar} color="bg-gold/70" />
-          <Bar label="Instructors"  value={instrCount} max={maxBar} color="bg-blue-400/70" />
+          <Bar label="Providers"    value={instrCount} max={maxBar} color="bg-blue-400/70" />
           <Bar label="Total users"  value={total}      max={Math.max(total, 1)} color="bg-white/30" />
         </div>
         <p className="text-cream/30 text-xs mt-6">

@@ -22,12 +22,12 @@ export default async function BlogPage() {
       <main className="max-w-5xl mx-auto px-6 py-20 min-h-screen">
         <p className="text-gold tracking-[0.3em] text-xs uppercase mb-3">Wellness insights</p>
         <h1 className="heading text-5xl font-light mb-4">The Mindful blog</h1>
-        <p className="text-cream/60 mb-16 max-w-xl">Expert articles on nutrition, meditation, and emotional wellness — written by our certified instructors.</p>
+        <p className="text-cream/60 mb-16 max-w-xl">Expert articles on nutrition, meditation, and emotional wellness — written by our certified providers.</p>
 
         {articles.length === 0 ? (
           <div className="card text-center py-16">
             <p className="heading text-2xl text-cream/40 mb-3">Coming soon</p>
-            <p className="text-cream/40 text-sm">Our instructors are writing the first articles. Check back shortly.</p>
+            <p className="text-cream/40 text-sm">Our providers are writing the first articles. Check back shortly.</p>
           </div>
         ) : (
           <div className="grid md:grid-cols-2 gap-6">

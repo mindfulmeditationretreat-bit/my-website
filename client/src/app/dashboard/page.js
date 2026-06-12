@@ -78,7 +78,7 @@ export default async function UserDashboard() {
           <p className="text-cream/40 text-xs mt-1">consecutive days</p>
         </div>
         <div className="card">
-          <p className="text-cream/50 text-xs uppercase tracking-widest mb-2">Instructor</p>
+          <p className="text-cream/50 text-xs uppercase tracking-widest mb-2">Provider</p>
           <p className="heading text-lg">{active?.instructor?.fullName || 'Not assigned'}</p>
           {active?.instructor?.expertise && (
             <p className="text-cream/60 text-xs mt-1">{active.instructor.expertise}</p>

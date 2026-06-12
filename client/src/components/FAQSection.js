@@ -4,19 +4,19 @@ import { useState } from 'react';
 const FAQS = [
   {
     q: 'What is included in the 14-day free trial?',
-    a: 'You get full premium access to all resources, your assigned instructor, and the complete program — no credit card required. After the trial, you keep your account and free content.',
+    a: 'You get full premium access to all resources, your assigned provider, and the complete program — no credit card required. After the trial, you keep your account and free content.',
   },
   {
     q: 'Can I switch programs after signing up?',
     a: 'Yes. You can start a trial on any of the three programs independently. Your dashboard tracks each program separately.',
   },
   {
-    q: 'How does instructor assignment work?',
-    a: 'Once you start a program, our admin team assigns you a specialist — a certified dietician, meditation instructor, or wellness counselor. You can message them directly from your dashboard.',
+    q: 'How does provider assignment work?',
+    a: 'Once you start a program, our admin team assigns you a specialist — a certified dietician, meditation coach, or wellness counselor. You can message them directly from your dashboard.',
   },
   {
     q: 'What happens after my trial ends?',
-    a: 'You will receive a reminder 2 days before your trial expires. After expiry, premium resources and instructor messaging are paused until you subscribe. Your account and all free content remain accessible.',
+    a: 'You will receive a reminder 2 days before your trial expires. After expiry, premium resources and provider messaging are paused until you subscribe. Your account and all free content remain accessible.',
   },
   {
     q: 'Is my data private and secure?',

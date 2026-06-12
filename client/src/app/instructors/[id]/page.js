@@ -16,7 +16,7 @@ export default async function InstructorProfilePage({ params }) {
   if (!instructor) {
     return (
       <main className="min-h-screen flex items-center justify-center">
-        <p className="text-cream/60">Instructor not found.</p>
+        <p className="text-cream/60">Provider not found.</p>
       </main>
     );
   }
@@ -27,7 +27,7 @@ export default async function InstructorProfilePage({ params }) {
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <a href="/"><Image src="/navbarlogo.png" alt="Mindful" width={40} height={40} className="h-10 w-auto" /></a>
           <div className="flex gap-4 text-sm">
-            <a href="/instructors" className="text-cream/70 hover:text-gold transition">← All instructors</a>
+            <a href="/instructors" className="text-cream/70 hover:text-gold transition">← All providers</a>
             <a href="/signup" className="btn-primary py-2 px-5">Start free trial</a>
           </div>
         </div>

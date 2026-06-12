@@ -29,9 +29,9 @@ export default function AdminInstructorsPage() {
       <div className="flex flex-wrap items-start justify-between gap-4 mb-8">
         <div>
           <p className="text-gold tracking-[0.3em] text-xs uppercase mb-3">Admin</p>
-          <h1 className="heading text-4xl font-light">Instructors</h1>
+          <h1 className="heading text-4xl font-light">Providers</h1>
         </div>
-        <Link href="/dashboard/admin/users/new" className="btn-primary">+ Add instructor</Link>
+        <Link href="/dashboard/admin/users/new" className="btn-primary">+ Add provider</Link>
       </div>
 
       {pending.length > 0 && (
@@ -70,9 +70,9 @@ export default function AdminInstructorsPage() {
       )}
 
       <section>
-        <h2 className="heading text-xl mb-4">Active Instructors</h2>
+        <h2 className="heading text-xl mb-4">Active Providers</h2>
         {approved.length === 0 ? (
-          <p className="text-cream/40 text-sm">No active instructors yet.</p>
+          <p className="text-cream/40 text-sm">No active providers yet.</p>
         ) : (
           <div className="grid md:grid-cols-2 gap-4">
             {approved.map((u) => (

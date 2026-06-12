@@ -95,7 +95,7 @@ export default function AdminCreateUserPage() {
                 <label className="label">Role *</label>
                 <select className="input" value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })}>
                   <option value="user">User</option>
-                  <option value="instructor">Instructor</option>
+                  <option value="instructor">Provider</option>
                   <option value="admin">Admin</option>
                 </select>
               </div>
@@ -147,7 +147,7 @@ export default function AdminCreateUserPage() {
 
           {form.role === 'instructor' && (
             <div>
-              <h2 className="heading text-xl mb-3">Instructor profile</h2>
+              <h2 className="heading text-xl mb-3">Provider profile</h2>
               <div className="space-y-3">
                 <div>
                   <label className="label">Expertise</label>

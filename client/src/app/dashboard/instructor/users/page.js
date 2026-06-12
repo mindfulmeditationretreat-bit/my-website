@@ -15,7 +15,7 @@ export default function InstructorUsersPage() {
 
   return (
     <>
-      <p className="text-gold tracking-[0.3em] text-xs uppercase mb-3">Instructor</p>
+      <p className="text-gold tracking-[0.3em] text-xs uppercase mb-3">Provider</p>
       <h1 className="heading text-4xl font-light mb-8">Assigned members</h1>
 
       {subs.length === 0 ? (

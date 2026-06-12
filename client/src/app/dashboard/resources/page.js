@@ -71,7 +71,7 @@ export default function ResourcesPage() {
                   <h3 className="heading text-xl mb-2">{a.resource.title}</h3>
                   {a.resource.description && <p className="text-cream/60 text-sm line-clamp-2">{a.resource.description}</p>}
                   {a.note && <p className="text-cream/50 text-xs mt-2 italic">Note: {a.note}</p>}
-                  <p className="text-cream/40 text-xs mt-3">From {a.assignedBy?.fullName || 'your instructor'}</p>
+                  <p className="text-cream/40 text-xs mt-3">From {a.assignedBy?.fullName || 'your provider'}</p>
                 </Link>
               ))}
             </div>

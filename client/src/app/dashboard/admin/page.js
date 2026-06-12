@@ -16,7 +16,7 @@ async function fetchStats() {
 
 const NAV_ITEMS = [
   { href: '/dashboard/admin/users',         title: 'Users',         desc: 'Create, edit, deactivate accounts and assign programs.' },
-  { href: '/dashboard/admin/instructors',   title: 'Instructors',   desc: 'Manage instructors, specialties and assignments.' },
+  { href: '/dashboard/admin/instructors',   title: 'Providers',     desc: 'Manage providers, specialties and assignments.' },
   { href: '/dashboard/admin/programs',      title: 'Programs',      desc: 'Edit pricing, trial length and program details.' },
   { href: '/dashboard/admin/subscriptions', title: 'Subscriptions', desc: 'Track active, trialing and expired subscriptions.' },
   { href: '/dashboard/admin/resources',     title: 'Content',       desc: 'Upload and manage articles, videos, PDFs and audio.' },
@@ -85,7 +85,7 @@ export default async function AdminDashboard() {
           </Link>
         ))}
         <div className="card flex flex-col gap-2">
-          <h3 className="heading text-lg">Instructors</h3>
+          <h3 className="heading text-lg">Providers</h3>
           <p className="heading text-4xl text-gold">{s?.instructorCount ?? '—'}</p>
           <p className="text-cream/50 text-xs">active on platform</p>
         </div>

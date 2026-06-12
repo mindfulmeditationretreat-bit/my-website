@@ -23,7 +23,7 @@ const NAV = {
   admin: [
     { href: '/dashboard/admin',               label: 'Overview',      exact: true },
     { href: '/dashboard/admin/users',         label: 'Users' },
-    { href: '/dashboard/admin/instructors',   label: 'Instructors' },
+    { href: '/dashboard/admin/instructors',   label: 'Providers' },
     { href: '/dashboard/admin/programs',      label: 'Programs' },
     { href: '/dashboard/admin/subscriptions', label: 'Subscriptions' },
     { href: '/dashboard/admin/resources',     label: 'Resources' },

@@ -2,7 +2,7 @@ import { cookies } from 'next/headers';
 import { requireUser } from '@/lib/auth';
 
 async function fetchData() {
-  const apiUrl = process.env.INTERNAL_API_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5050/api';
+  const apiUrl = process.env.INTERNAL_API_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
   const token = cookies().get('token')?.value;
   if (!token) return { users: [], unread: 0 };
   const [usersRes, notifRes] = await Promise.all([
@@ -21,9 +21,9 @@ export default async function InstructorDashboard() {
 
   return (
     <>
-      <p className="text-gold tracking-[0.3em] text-xs uppercase mb-3">Instructor</p>
-      <h1 className="heading text-4xl font-light mb-2">Welcome, {user.fullName || 'instructor'}.</h1>
-      <p className="text-cream/60 mb-10">{user.expertise || 'Wellness instructor'}</p>
+      <p className="text-gold tracking-[0.3em] text-xs uppercase mb-3">Provider</p>
+      <h1 className="heading text-4xl font-light mb-2">Welcome, {user.fullName || 'provider'}.</h1>
+      <p className="text-cream/60 mb-10">{user.expertise || 'Wellness provider'}</p>
 
       <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
         <div className="card">

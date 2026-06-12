@@ -100,7 +100,7 @@ export default function AdminSubscriptionsPage() {
                     </span>
                   </div>
                   <div className="flex items-center justify-between gap-3 mt-3 text-xs">
-                    <span className="text-cream/60">{s.instructor?.fullName ? `Instructor: ${s.instructor.fullName}` : 'No instructor'}</span>
+                    <span className="text-cream/60">{s.instructor?.fullName ? `Provider: ${s.instructor.fullName}` : 'No provider'}</span>
                     {daysLeft != null
                       ? <span className={daysLeft <= 3 ? 'text-red-400' : 'text-cream/50'}>{daysLeft === 0 ? 'Ends today' : `${daysLeft}d left`}</span>
                       : <span className="text-cream/30">—</span>}
@@ -114,7 +114,7 @@ export default function AdminSubscriptionsPage() {
           <table className="hidden md:table w-full text-sm">
             <thead>
               <tr className="border-b border-gold/10">
-                {['Member', 'Program', 'Status', 'Instructor', 'Trial ends', 'Started'].map((h) => (
+                {['Member', 'Program', 'Status', 'Provider', 'Trial ends', 'Started'].map((h) => (
                   <th key={h} className="text-left px-5 py-3.5 text-cream/40 text-xs uppercase tracking-widest font-normal first:pl-5 last:pr-5">{h}</th>
                 ))}
               </tr>

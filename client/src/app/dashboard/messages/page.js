@@ -18,7 +18,7 @@ export default function MessagesPage() {
 
       {loading ? <p className="text-cream/60">Loading…</p>
         : conversations.length === 0 ? (
-          <p className="text-cream/60">No conversations yet. Once an instructor is assigned, your chat will appear here.</p>
+          <p className="text-cream/60">No conversations yet. Once a provider is assigned, your chat will appear here.</p>
         ) : (
           <div className="space-y-3">
             {conversations.map((c) => (

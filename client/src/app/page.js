@@ -31,7 +31,7 @@ export default function Home() {
               </Link>
               <Link href="/signup?role=instructor"
                 className="border border-gold/50 text-cream text-sm px-8 py-3.5 rounded-full hover:border-gold hover:text-gold transition">
-                Become an Instructor
+                Become a Provider
               </Link>
             </div>
           </div>

@@ -7,7 +7,7 @@ import Select from '@/components/Select';
 
 const ROLES = [
   { value: 'user', label: 'User' },
-  { value: 'instructor', label: 'Instructor' },
+  { value: 'instructor', label: 'Provider' },
   { value: 'admin', label: 'Admin' },
 ];
 
@@ -72,7 +72,7 @@ export default function AdminUserEditPage() {
 
   async function assignInstructor(subId, instructorId) {
     await api.post(`/admin/subscriptions/${subId}/assign-instructor`, { instructorId: instructorId || null });
-    setMsg('Instructor updated.');
+    setMsg('Provider updated.');
     await load();
   }
 
@@ -185,11 +185,11 @@ export default function AdminUserEditPage() {
         </div>
       </form>
 
-      {/* Subscriptions & instructors */}
+      {/* Subscriptions & providers */}
       <div className="card mb-6">
         <div className="mb-5">
-          <h2 className="heading text-2xl">Subscriptions &amp; instructors</h2>
-          <p className="text-cream/50 text-sm mt-1">Track each plan's trial timeline and assign the instructor who will support this member.</p>
+          <h2 className="heading text-2xl">Subscriptions &amp; providers</h2>
+          <p className="text-cream/50 text-sm mt-1">Track each plan's trial timeline and assign the provider who will support this member.</p>
         </div>
 
         {subs.length === 0 ? (
@@ -231,15 +231,15 @@ export default function AdminUserEditPage() {
 
                   {/* Instructor assignment */}
                   <div className="sm:max-w-sm">
-                    <label className="label">Assigned instructor</label>
+                    <label className="label">Assigned provider</label>
                     {instructors.length === 0 ? (
-                      <p className="text-cream/40 text-xs">No instructors available. Create one from the Instructors page.</p>
+                      <p className="text-cream/40 text-xs">No providers available. Create one from the Providers page.</p>
                     ) : (
                       <Select
-                        options={[{ value: '', label: '— No instructor —' }, ...instructorOptions]}
+                        options={[{ value: '', label: '— No provider —' }, ...instructorOptions]}
                         value={s.instructorId ? String(s.instructorId) : ''}
                         onChange={(v) => assignInstructor(s.id, v ? Number(v) : null)}
-                        placeholder="— No instructor —"
+                        placeholder="— No provider —"
                       />
                     )}
                   </div>
@@ -254,7 +254,7 @@ export default function AdminUserEditPage() {
       <form onSubmit={handleAssignProgram} className="card mb-6 space-y-5">
         <div>
           <h2 className="heading text-2xl">Enrol in a program</h2>
-          <p className="text-cream/50 text-sm mt-1">Start a new trial for this member and optionally assign an instructor right away.</p>
+          <p className="text-cream/50 text-sm mt-1">Start a new trial for this member and optionally assign a provider right away.</p>
         </div>
         {programs.length === 0 ? (
           <p className="text-cream/50 text-sm">No programs yet. Add a program from the Programs page before you can enrol users.</p>
@@ -268,12 +268,12 @@ export default function AdminUserEditPage() {
                 <Select options={programOptions} value={assignForm.programId} onChange={(v) => setAssignForm({ ...assignForm, programId: v })} placeholder="— Select program —" />
               </div>
               <div>
-                <label className="label">Assign instructor (optional)</label>
+                <label className="label">Assign provider (optional)</label>
                 <Select
-                  options={[{ value: '', label: '— No instructor yet —' }, ...instructorOptions]}
+                  options={[{ value: '', label: '— No provider yet —' }, ...instructorOptions]}
                   value={assignForm.instructorId}
                   onChange={(v) => setAssignForm({ ...assignForm, instructorId: v })}
-                  placeholder="— No instructor yet —"
+                  placeholder="— No provider yet —"
                 />
               </div>
             </div>

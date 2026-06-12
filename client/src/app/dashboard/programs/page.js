@@ -71,7 +71,7 @@ export default function MyProgramsPage() {
                       </p>
                     )}
                     {s.instructor && (
-                      <p className="text-cream/60 text-sm mt-1">Instructor: {s.instructor.fullName}</p>
+                      <p className="text-cream/60 text-sm mt-1">Provider: {s.instructor.fullName}</p>
                     )}
                   </div>
                   {s.status !== 'cancelled' && s.status !== 'expired' && (
