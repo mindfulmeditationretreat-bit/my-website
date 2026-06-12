@@ -138,7 +138,7 @@ export default function AdminUserEditPage() {
           <h1 className="heading text-3xl font-light leading-tight truncate">{user.fullName || user.email}</h1>
           <p className="text-cream/50 text-sm truncate">{user.email}</p>
           <div className="flex flex-wrap items-center gap-2 mt-2">
-            <span className="px-2.5 py-0.5 rounded-full border border-gold/30 bg-gold/10 text-gold text-[11px] uppercase tracking-widest">{user.role}</span>
+            <span className="px-2.5 py-0.5 rounded-full border border-gold/30 bg-gold/10 text-gold text-[11px] uppercase tracking-widest">{user.role === 'instructor' ? 'provider' : user.role}</span>
             <span className={`px-2.5 py-0.5 rounded-full border text-[11px] uppercase tracking-widest ${user.active ? 'bg-green-500/15 text-green-400 border-green-500/30' : 'bg-red-500/10 text-red-400/80 border-red-500/20'}`}>
               {user.active ? 'Active' : 'Inactive'}
             </span>

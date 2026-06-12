@@ -9,6 +9,8 @@ const ROLE_BADGE = {
   user:       'bg-gold/10        text-gold        border-gold/30',
 };
 
+const ROLE_LABEL = { admin: 'admin', instructor: 'provider', user: 'user' };
+
 export default function AdminUsersPage() {
   const [users, setUsers]   = useState([]);
   const [q, setQ]           = useState('');
@@ -95,7 +97,7 @@ export default function AdminUsersPage() {
                     <p className="text-cream/50 text-xs truncate">{u.email}</p>
                   </div>
                   <span className={`shrink-0 inline-flex px-2.5 py-0.5 rounded-full text-xs border ${ROLE_BADGE[u.role] || ROLE_BADGE.user}`}>
-                    {u.role}
+                    {ROLE_LABEL[u.role] ?? u.role}
                   </span>
                 </div>
                 <div className="flex items-center justify-between gap-3 mt-3">
@@ -140,7 +142,7 @@ export default function AdminUsersPage() {
                   {/* Role */}
                   <td className="px-4 py-3.5">
                     <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs border ${ROLE_BADGE[u.role] || ROLE_BADGE.user}`}>
-                      {u.role}
+                      {ROLE_LABEL[u.role] ?? u.role}
                     </span>
                   </td>
                   {/* Joined */}
