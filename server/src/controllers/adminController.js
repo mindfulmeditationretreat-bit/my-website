@@ -165,9 +165,9 @@ async function assignInstructor(req, res, next) {
 
     if (instructorId) {
       const instr = await db.query.users.findFirst({
-        where: (t, { eq, and }) => and(eq(t.id, Number(instructorId)), eq(t.role, 'instructor')),
+        where: (t, { eq, and }) => and(eq(t.id, Number(instructorId)), eq(t.role, 'instructor'), eq(t.active, true)),
       });
-      if (!instr) return res.status(400).json({ message: 'Instructor not found' });
+      if (!instr) return res.status(400).json({ message: 'Instructor not found or not yet approved' });
     }
     await db.update(subscriptions)
       .set({ instructorId: instructorId ? Number(instructorId) : null, updatedAt: new Date() })
@@ -231,6 +231,13 @@ async function assignProgram(req, res, next) {
 
     const user = await db.query.users.findFirst({ where: (t, { eq }) => eq(t.id, userId) });
     if (!user) return res.status(404).json({ message: 'User not found' });
+
+    if (instructorId) {
+      const instr = await db.query.users.findFirst({
+        where: (t, { eq, and }) => and(eq(t.id, Number(instructorId)), eq(t.role, 'instructor'), eq(t.active, true)),
+      });
+      if (!instr) return res.status(400).json({ message: 'Instructor not found or not yet approved' });
+    }
 
     const program = await db.query.programs.findFirst({ where: (t, { eq }) => eq(t.id, Number(programId)) });
     if (!program) return res.status(404).json({ message: 'Program not found' });

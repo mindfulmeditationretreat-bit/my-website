@@ -70,6 +70,7 @@ async function signup(req, res, next) {
     const user = await db.query.users.findFirst({ where: (t, { eq }) => eq(t.id, id) });
 
     if (role === 'instructor') {
+      res.cookie('token', signToken(user), COOKIE_OPTIONS);
       return res.status(201).json({ pending: true });
     }
 
@@ -91,11 +92,8 @@ async function login(req, res, next) {
 
     const user = await db.query.users.findFirst({ where: (t, { eq }) => eq(t.email, email) });
     if (!user) return res.status(401).json({ message: 'Invalid credentials' });
-    if (!user.active) {
-      const msg = user.role === 'instructor'
-        ? 'Your account is pending admin approval'
-        : 'Account deactivated';
-      return res.status(403).json({ message: msg });
+    if (!user.active && user.role !== 'instructor') {
+      return res.status(403).json({ message: 'Account deactivated' });
     }
 
     const ok = await bcrypt.compare(password, user.passwordHash || '');
