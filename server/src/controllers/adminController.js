@@ -54,20 +54,21 @@ async function listUsers(req, res, next) {
 async function getUser(req, res, next) {
   try {
     const id = Number(req.params.id);
-    const user = await db.query.users.findFirst({
-      where: (t, { eq }) => eq(t.id, id),
-      with: {
-        subscriptions: {
-          with: {
-            program: true,
-            instructor: { columns: { id: true, fullName: true } },
-          },
+    // Split into two queries to avoid MariaDB json_arrayagg incompatibility
+    // that Drizzle generates when nesting a many-relation with its own with clause.
+    const [user, subs] = await Promise.all([
+      db.query.users.findFirst({ where: (t, { eq }) => eq(t.id, id) }),
+      db.query.subscriptions.findMany({
+        where: (t, { eq }) => eq(t.userId, id),
+        with: {
+          program: true,
+          instructor: { columns: { id: true, fullName: true } },
         },
-      },
-    });
+      }),
+    ]);
     if (!user) return res.status(404).json({ message: 'Not found' });
     const { passwordHash, ...safeUser } = user;
-    res.json(safeUser);
+    res.json({ ...safeUser, subscriptions: subs });
   } catch (err) { next(err); }
 }
 
