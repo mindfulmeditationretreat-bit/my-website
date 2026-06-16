@@ -22,6 +22,7 @@ const users = mysqlTable('users', {
   availability:      varchar('availability', { length: 255 }),
   address:           varchar('address', { length: 500 }),
   phone:             varchar('phone', { length: 50 }),
+  country:           varchar('country', { length: 255 }),
   travelCountry:     varchar('travel_country', { length: 255 }),
   notificationPrefs: json('notification_prefs'),
   onboarded:         boolean('onboarded').notNull().default(false),

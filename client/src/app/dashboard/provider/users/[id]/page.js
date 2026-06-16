@@ -74,7 +74,8 @@ export default function InstructorUserDetailPage() {
             <h3 className="heading text-xl mb-3">About</h3>
             <p className="text-cream/70 text-sm">Age: {data.user.age || '—'}</p>
             <p className="text-cream/70 text-sm">Gender: {data.user.gender || '—'}</p>
-            <p className="text-cream/70 text-sm">Interested country to travel: {data.user.travelCountry || '—'}</p>
+            <p className="text-cream/70 text-sm">Country: {data.user.country || '—'}</p>
+            <p className="text-cream/70 text-sm">Country interested to travel: {data.user.travelCountry || '—'}</p>
             <p className="text-cream/70 text-sm mt-2">Status: <span className="text-gold uppercase text-xs tracking-widest">{data.status}</span></p>
             <p className="text-cream/70 text-sm">Trial ends: {data.trialEndsAt ? new Date(data.trialEndsAt).toLocaleDateString() : '—'}</p>
           </div>

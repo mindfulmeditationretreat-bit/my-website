@@ -85,7 +85,7 @@ async function getUser(req, res, next) {
 
 async function createUser(req, res, next) {
   try {
-    const { email, fullName, role, age, gender, wellnessGoals, travelCountry, phone, expertise, bio, availability } = req.body;
+    const { email, fullName, role, age, gender, wellnessGoals, country, travelCountry, phone, expertise, bio, availability } = req.body;
     if (!email || !role) return res.status(400).json({ message: 'email and role required' });
     const existing = await db.query.users.findFirst({ where: (t, { eq }) => eq(t.email, email) });
     if (existing) return res.status(409).json({ message: 'Email already exists' });
@@ -108,6 +108,7 @@ async function createUser(req, res, next) {
       age: ageNum,
       gender: gender || null,
       wellnessGoals: goals,
+      country: country || null,
       travelCountry: travelCountry || null,
       phone: phone || null,
       expertise: expertise || null,
@@ -135,7 +136,7 @@ async function createUser(req, res, next) {
 async function updateUser(req, res, next) {
   try {
     const id = Number(req.params.id);
-    const { fullName, role, active, travelCountry, expertise, bio, availability } = req.body;
+    const { fullName, role, active, country, travelCountry, expertise, bio, availability } = req.body;
 
     const existing = await db.query.users.findFirst({ where: (t, { eq }) => eq(t.id, id) });
     if (!existing) return res.status(404).json({ message: 'Not found' });
@@ -144,6 +145,7 @@ async function updateUser(req, res, next) {
     if (fullName !== undefined) data.fullName = fullName;
     if (role !== undefined) data.role = role;
     if (active !== undefined) data.active = !!active;
+    if (country !== undefined) data.country = country || null;
     if (travelCountry !== undefined) data.travelCountry = travelCountry || null;
     if (expertise !== undefined) data.expertise = expertise;
     if (bio !== undefined) data.bio = bio;

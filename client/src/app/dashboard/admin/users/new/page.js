@@ -21,7 +21,7 @@ export default function AdminCreateUserPage() {
   const [form, setForm] = useState({
     email: '', fullName: '', role: 'user',
     age: '', gender: '', wellnessGoals: [],
-    travelCountry: '', phone: '',
+    country: '', travelCountry: '', phone: '',
     expertise: '', bio: '', availability: '',
   });
   const [busy, setBusy] = useState(false);
@@ -126,7 +126,11 @@ export default function AdminCreateUserPage() {
                 </select>
               </div>
               <div>
-                <label className="label">Country (interested to travel)</label>
+                <label className="label">Your country <span className="text-cream/40 font-normal">(optional)</span></label>
+                <input className="input" placeholder="e.g. United States" value={form.country} onChange={(e) => setForm({ ...form, country: e.target.value })} />
+              </div>
+              <div>
+                <label className="label">Country interested to travel <span className="text-cream/40 font-normal">(optional)</span></label>
                 <input className="input" placeholder="e.g. Nepal" value={form.travelCountry} onChange={(e) => setForm({ ...form, travelCountry: e.target.value })} />
               </div>
               <div>
