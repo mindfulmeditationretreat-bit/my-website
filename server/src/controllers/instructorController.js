@@ -51,7 +51,7 @@ async function getAssignedUser(req, res, next) {
     if (!sub) return res.status(404).json({ message: 'Not found or not assigned to you' });
 
     const [userRow, progRow, notes] = await Promise.all([
-      db.query.users.findFirst({ where: (t, { eq }) => eq(t.id, userId), columns: { id: true, email: true, fullName: true, photoUrl: true, age: true, gender: true, wellnessGoals: true } }),
+      db.query.users.findFirst({ where: (t, { eq }) => eq(t.id, userId), columns: { id: true, email: true, fullName: true, photoUrl: true, age: true, gender: true, wellnessGoals: true, travelCountry: true, phone: true } }),
       db.query.programs.findFirst({ where: (t, { eq }) => eq(t.id, sub.programId) }),
       db.query.instructorNotes.findMany({ where: (t, { eq }) => eq(t.userId, userId), orderBy: (t, { desc }) => desc(t.createdAt) }),
     ]);

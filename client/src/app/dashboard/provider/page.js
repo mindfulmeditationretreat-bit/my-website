@@ -36,7 +36,7 @@ export default async function InstructorDashboard() {
         </div>
         <div className="card">
           <p className="text-cream/50 text-xs uppercase tracking-widest mb-2">Active programs</p>
-          <p className="heading text-3xl">{new Set(users.map((s) => s.program.id)).size}</p>
+          <p className="heading text-3xl">{new Set(users.map((s) => s.program?.id).filter(Boolean)).size}</p>
         </div>
       </div>
     </>

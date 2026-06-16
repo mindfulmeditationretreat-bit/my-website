@@ -13,6 +13,7 @@ const GOALS = [
   { id: 'healthy_lifestyle',   label: 'Healthy Lifestyle' },
   { id: 'emotional_wellness',  label: 'Emotional Wellness' },
   { id: 'fitness_nutrition',   label: 'Fitness & Nutrition' },
+  { id: 'spiritual_journey',   label: 'Spiritual Journey' },
 ];
 
 export default function AdminCreateUserPage() {
@@ -20,6 +21,7 @@ export default function AdminCreateUserPage() {
   const [form, setForm] = useState({
     email: '', fullName: '', role: 'user',
     age: '', gender: '', wellnessGoals: [],
+    travelCountry: '', phone: '',
     expertise: '', bio: '', availability: '',
   });
   const [busy, setBusy] = useState(false);
@@ -122,6 +124,14 @@ export default function AdminCreateUserPage() {
                   <option value="non_binary">Non-binary</option>
                   <option value="prefer_not_to_say">Prefer not to say</option>
                 </select>
+              </div>
+              <div>
+                <label className="label">Country (interested to travel)</label>
+                <input className="input" placeholder="e.g. Nepal" value={form.travelCountry} onChange={(e) => setForm({ ...form, travelCountry: e.target.value })} />
+              </div>
+              <div>
+                <label className="label">Phone <span className="text-cream/40 font-normal">(optional)</span></label>
+                <input className="input" type="tel" placeholder="e.g. +1 9435679832" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
               </div>
             </div>
           </div>

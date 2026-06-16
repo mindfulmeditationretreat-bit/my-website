@@ -51,7 +51,7 @@ export default function InstructorUserDetailPage() {
 
       <div className="flex items-end justify-between mt-6 mb-6">
         <div>
-          <p className="text-gold tracking-[0.3em] text-xs uppercase mb-3">{data.program.name}</p>
+          <p className="text-gold tracking-[0.3em] text-xs uppercase mb-3">{data.program?.name ?? '—'}</p>
           <h1 className="heading text-4xl font-light">{data.user.fullName || data.user.email}</h1>
         </div>
         <Link href={`/dashboard/messages/${data.user.id}`} className="btn-outline">Message</Link>

@@ -50,6 +50,7 @@ async function listUsers(req, res, next) {
       columns: {
         id: true, email: true, role: true, fullName: true,
         active: true, emailVerified: true, onboarded: true, createdAt: true,
+        expertise: true,
       },
     });
     res.json(rows);
@@ -84,7 +85,7 @@ async function getUser(req, res, next) {
 
 async function createUser(req, res, next) {
   try {
-    const { email, fullName, role, age, gender, wellnessGoals, travelCountry, expertise, bio, availability } = req.body;
+    const { email, fullName, role, age, gender, wellnessGoals, travelCountry, phone, expertise, bio, availability } = req.body;
     if (!email || !role) return res.status(400).json({ message: 'email and role required' });
     const existing = await db.query.users.findFirst({ where: (t, { eq }) => eq(t.email, email) });
     if (existing) return res.status(409).json({ message: 'Email already exists' });
@@ -108,6 +109,7 @@ async function createUser(req, res, next) {
       gender: gender || null,
       wellnessGoals: goals,
       travelCountry: travelCountry || null,
+      phone: phone || null,
       expertise: expertise || null,
       bio: bio || null,
       availability: availability || null,
