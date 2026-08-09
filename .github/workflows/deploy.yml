@@ -1,46 +1,47 @@
 name: Deploy Backend to cPanel
 
+# Push to main → install, migrate if needed, restart API on cPanel via SSH
 on:
   push:
-    branches:
-      - main
+    branches: [main]
     paths:
       - 'server/**'
       - '.github/workflows/deploy.yml'
+  workflow_dispatch:
 
 jobs:
   deploy-backend:
-    name: Deploy API to cPanel
+    name: Build & deploy API
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
+      - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 2
 
-      - name: Detect what changed
+      - name: Detect migrations / seed changes
         id: changes
         run: |
-          if git diff --name-only HEAD~1 HEAD | grep -q '^server/db/migrations/'; then
+          if git diff --name-only HEAD~1 HEAD 2>/dev/null | grep -qE '^server/db/migrations/|^server/db/migrate\.js'; then
             echo "migrations=true" >> $GITHUB_OUTPUT
           else
             echo "migrations=false" >> $GITHUB_OUTPUT
           fi
-          if git diff --name-only HEAD~1 HEAD | grep -q '^server/db/seed\.js'; then
+          if git diff --name-only HEAD~1 HEAD 2>/dev/null | grep -q '^server/db/seed\.js'; then
             echo "seed=true" >> $GITHUB_OUTPUT
           else
             echo "seed=false" >> $GITHUB_OUTPUT
           fi
 
-      - name: Setup SSH key
+      - name: Setup SSH
         run: |
           mkdir -p ~/.ssh
           echo "${{ secrets.CPANEL_SSH_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
-          ssh-keyscan -p ${{ secrets.CPANEL_SSH_PORT }} ${{ secrets.CPANEL_HOST }} >> ~/.ssh/known_hosts 2>/dev/null
+          ssh-keyscan -p "${{ secrets.CPANEL_SSH_PORT }}" "${{ secrets.CPANEL_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
 
-      - name: Package server files
+      - name: Package server
         run: |
           tar --exclude='server/node_modules' \
               --exclude='server/.env' \
@@ -49,69 +50,108 @@ jobs:
               --exclude='server/*.log' \
               -czf /tmp/api.tar.gz -C server .
 
-      - name: Upload archive to server
+      - name: Upload package
         run: |
-          scp -i ~/.ssh/deploy_key \
-              -P ${{ secrets.CPANEL_SSH_PORT }} \
-              /tmp/api.tar.gz \
-              ${{ secrets.CPANEL_USERNAME }}@${{ secrets.CPANEL_HOST }}:~/api.tar.gz
+          scp -i ~/.ssh/deploy_key -P "${{ secrets.CPANEL_SSH_PORT }}" \
+            /tmp/api.tar.gz \
+            "${{ secrets.CPANEL_USERNAME }}@${{ secrets.CPANEL_HOST }}:~/api.tar.gz"
 
-      - name: Write .env and upload
+      - name: Write production .env
+        env:
+          CLIENT_ORIGIN: ${{ secrets.CLIENT_ORIGIN }}
+          SERVER_ORIGIN: ${{ secrets.SERVER_ORIGIN }}
+          COOKIE_DOMAIN: ${{ secrets.COOKIE_DOMAIN }}
+          API_PORT: ${{ secrets.API_PORT }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          SESSION_SECRET: ${{ secrets.SESSION_SECRET }}
+          JWT_EXPIRES_IN: ${{ secrets.JWT_EXPIRES_IN }}
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          SMTP_HOST: ${{ secrets.SMTP_HOST }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASS: ${{ secrets.SMTP_PASS }}
+          SMTP_FROM: ${{ secrets.SMTP_FROM }}
+          SMTP_SENDMAIL: ${{ secrets.SMTP_SENDMAIL }}
+          IMAGEKIT_PUBLIC_KEY: ${{ secrets.IMAGEKIT_PUBLIC_KEY }}
+          IMAGEKIT_PRIVATE_KEY: ${{ secrets.IMAGEKIT_PRIVATE_KEY }}
+          IMAGEKIT_URL_ENDPOINT: ${{ secrets.IMAGEKIT_URL_ENDPOINT }}
         run: |
-          printf 'PORT=5050\n' > /tmp/production.env
-          printf 'NODE_ENV=production\n' >> /tmp/production.env
-          printf 'CLIENT_ORIGIN=https://mindfulmeditationretreat.org\n' >> /tmp/production.env
-          printf 'SERVER_ORIGIN=https://api.mindfulmeditationretreat.org\n' >> /tmp/production.env
-          printf 'COOKIE_DOMAIN=.mindfulmeditationretreat.org\n' >> /tmp/production.env
-          printf 'JWT_EXPIRES_IN=7d\n' >> /tmp/production.env
-          printf 'UPLOAD_DIR=uploads\n' >> /tmp/production.env
-          printf 'MAX_UPLOAD_MB=25\n' >> /tmp/production.env
-          printf 'DATABASE_URL=%s\n' "${{ secrets.DATABASE_URL }}" >> /tmp/production.env
-          printf 'JWT_SECRET=%s\n' "${{ secrets.JWT_SECRET }}" >> /tmp/production.env
-          printf 'SESSION_SECRET=%s\n' "${{ secrets.SESSION_SECRET }}" >> /tmp/production.env
-          printf 'GOOGLE_CLIENT_ID=%s\n' "${{ secrets.GOOGLE_CLIENT_ID }}" >> /tmp/production.env
-          printf 'GOOGLE_CLIENT_SECRET=%s\n' "${{ secrets.GOOGLE_CLIENT_SECRET }}" >> /tmp/production.env
-          printf 'SMTP_HOST=%s\n' "${{ secrets.SMTP_HOST }}" >> /tmp/production.env
-          printf 'SMTP_PORT=%s\n' "${{ secrets.SMTP_PORT }}" >> /tmp/production.env
-          printf 'SMTP_USER=%s\n' "${{ secrets.SMTP_USER }}" >> /tmp/production.env
-          printf 'SMTP_PASS=%s\n' "${{ secrets.SMTP_PASS }}" >> /tmp/production.env
-          printf 'SMTP_FROM=%s\n' "${{ secrets.SMTP_FROM }}" >> /tmp/production.env
-          printf 'IMAGEKIT_PUBLIC_KEY=%s\n' "${{ secrets.IMAGEKIT_PUBLIC_KEY }}" >> /tmp/production.env
-          printf 'IMAGEKIT_PRIVATE_KEY=%s\n' "${{ secrets.IMAGEKIT_PRIVATE_KEY }}" >> /tmp/production.env
-          printf 'IMAGEKIT_URL_ENDPOINT=%s\n' "${{ secrets.IMAGEKIT_URL_ENDPOINT }}" >> /tmp/production.env
-          scp -i ~/.ssh/deploy_key \
-              -P ${{ secrets.CPANEL_SSH_PORT }} \
-              /tmp/production.env \
-              ${{ secrets.CPANEL_USERNAME }}@${{ secrets.CPANEL_HOST }}:~/api/.env
+          PORT_VAL="${API_PORT:-5050}"
+          EXPIRES="${JWT_EXPIRES_IN:-7d}"
+          SENDMAIL="${SMTP_SENDMAIL:-true}"
+          {
+            echo "PORT=${PORT_VAL}"
+            echo "NODE_ENV=production"
+            echo "CLIENT_ORIGIN=${CLIENT_ORIGIN}"
+            echo "SERVER_ORIGIN=${SERVER_ORIGIN}"
+            echo "COOKIE_DOMAIN=${COOKIE_DOMAIN}"
+            echo "JWT_EXPIRES_IN=${EXPIRES}"
+            echo "UPLOAD_DIR=uploads"
+            echo "MAX_UPLOAD_MB=25"
+            echo "DATABASE_URL=${DATABASE_URL}"
+            echo "JWT_SECRET=${JWT_SECRET}"
+            echo "SESSION_SECRET=${SESSION_SECRET}"
+            echo "GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}"
+            echo "GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}"
+            echo "SMTP_HOST=${SMTP_HOST}"
+            echo "SMTP_PORT=${SMTP_PORT}"
+            echo "SMTP_USER=${SMTP_USER}"
+            echo "SMTP_PASS=${SMTP_PASS}"
+            echo "SMTP_FROM=${SMTP_FROM}"
+            echo "SMTP_SENDMAIL=${SENDMAIL}"
+            echo "IMAGEKIT_PUBLIC_KEY=${IMAGEKIT_PUBLIC_KEY}"
+            echo "IMAGEKIT_PRIVATE_KEY=${IMAGEKIT_PRIVATE_KEY}"
+            echo "IMAGEKIT_URL_ENDPOINT=${IMAGEKIT_URL_ENDPOINT}"
+          } > /tmp/production.env
+          scp -i ~/.ssh/deploy_key -P "${{ secrets.CPANEL_SSH_PORT }}" \
+            /tmp/production.env \
+            "${{ secrets.CPANEL_USERNAME }}@${{ secrets.CPANEL_HOST }}:~/api/.env"
 
-      - name: Extract files and install dependencies
+      - name: Extract, npm install, restart
+        env:
+          RUN_MIGRATE: ${{ steps.changes.outputs.migrations }}
+          RUN_SEED: ${{ steps.changes.outputs.seed }}
         run: |
-          ssh -i ~/.ssh/deploy_key \
-              -p ${{ secrets.CPANEL_SSH_PORT }} \
-              ${{ secrets.CPANEL_USERNAME }}@${{ secrets.CPANEL_HOST }} \
-              'cd ~ && tar -xzf api.tar.gz -C ~/api && rm api.tar.gz && cd ~/api && /opt/alt/alt-nodejs20/root/usr/bin/npm install --omit=dev && echo "Install done"'
-
-      - name: Run SQL migrations
-        if: steps.changes.outputs.migrations == 'true'
-        run: |
-          echo "New migrations detected — running migrate.sh"
-          ssh -i ~/.ssh/deploy_key \
-              -p ${{ secrets.CPANEL_SSH_PORT }} \
-              ${{ secrets.CPANEL_USERNAME }}@${{ secrets.CPANEL_HOST }} \
-              'cd ~/api && bash db/migrate.sh'
-
-      - name: Seed database
-        if: steps.changes.outputs.seed == 'true'
-        run: |
-          echo "seed.js changed — running seeder"
-          ssh -i ~/.ssh/deploy_key \
-              -p ${{ secrets.CPANEL_SSH_PORT }} \
-              ${{ secrets.CPANEL_USERNAME }}@${{ secrets.CPANEL_HOST }} \
-              'cd ~/api && /opt/alt/alt-nodejs20/root/usr/bin/node db/seed.js'
-
-      - name: Restart app via PM2
-        run: |
-          ssh -i ~/.ssh/deploy_key \
-              -p ${{ secrets.CPANEL_SSH_PORT }} \
-              ${{ secrets.CPANEL_USERNAME }}@${{ secrets.CPANEL_HOST }} \
-              'PM2=/home/mindful1/npm-global/bin/pm2 && NODE=/opt/alt/alt-nodejs20/root/usr/bin/node && cd ~/api && $PM2 delete mindfull-api 2>/dev/null || true && $PM2 start src/index.js --name mindfull-api --interpreter $NODE && $PM2 save --force && echo "Restarted"'
+          ssh -i ~/.ssh/deploy_key -p "${{ secrets.CPANEL_SSH_PORT }}" \
+            "${{ secrets.CPANEL_USERNAME }}@${{ secrets.CPANEL_HOST }}" \
+            "export RUN_MIGRATE='${RUN_MIGRATE}' RUN_SEED='${RUN_SEED}' NODE_BIN='${{ secrets.NODE_BIN }}' PM2_BIN='${{ secrets.PM2_BIN }}' API_DIR='${{ secrets.API_DIR }}'; bash -s" << 'EOF'
+          set -e
+          API_DIR="${API_DIR:-$HOME/api}"
+          NODE_BIN="${NODE_BIN:-$(command -v node || true)}"
+          PM2_BIN="${PM2_BIN:-$(command -v pm2 || true)}"
+          if [ -z "$NODE_BIN" ] || [ ! -x "$NODE_BIN" ]; then
+            for c in /opt/alt/alt-nodejs20/root/usr/bin/node /opt/alt/alt-nodejs18/root/usr/bin/node /usr/bin/node; do
+              [ -x "$c" ] && NODE_BIN="$c" && break
+            done
+          fi
+          if [ -z "$PM2_BIN" ] || [ ! -x "$PM2_BIN" ]; then
+            for c in "$HOME/npm-global/bin/pm2" /usr/bin/pm2; do
+              [ -x "$c" ] && PM2_BIN="$c" && break
+            done
+          fi
+          echo "NODE_BIN=$NODE_BIN"
+          echo "PM2_BIN=$PM2_BIN"
+          echo "API_DIR=$API_DIR"
+          mkdir -p "$API_DIR"
+          tar -xzf ~/api.tar.gz -C "$API_DIR"
+          rm -f ~/api.tar.gz
+          cd "$API_DIR"
+          "$NODE_BIN" "$(dirname "$NODE_BIN")/npm" install --omit=dev 2>/dev/null \
+            || npm install --omit=dev
+          if [ "$RUN_MIGRATE" = "true" ]; then
+            "$NODE_BIN" db/migrate.js || true
+          fi
+          if [ "$RUN_SEED" = "true" ]; then
+            "$NODE_BIN" db/seed.js || true
+          fi
+          if [ -n "$PM2_BIN" ] && [ -x "$PM2_BIN" ]; then
+            "$PM2_BIN" delete mindfull-api 2>/dev/null || true
+            "$PM2_BIN" start src/index.js --name mindfull-api --interpreter "$NODE_BIN"
+            "$PM2_BIN" save --force || true
+          else
+            echo "PM2 not found — start the API from cPanel → Setup Node.js App (startup: src/index.js)"
+          fi
+          echo "API deploy done"
+          EOF

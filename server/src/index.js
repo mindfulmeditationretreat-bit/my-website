@@ -24,6 +24,7 @@ const notificationRoutes = require('./routes/notificationRoutes');
 const progressRoutes = require('./routes/progressRoutes');
 const adminRoutes = require('./routes/adminRoutes');
 const paymentRoutes = require('./routes/paymentRoutes');
+const dashboardFeatureRoutes = require('./routes/dashboardFeatureRoutes');
 
 const app = express();
 const httpServer = http.createServer(app);
@@ -63,6 +64,7 @@ app.use('/api/notifications', notificationRoutes);
 app.use('/api/progress', progressRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/payments', paymentRoutes);
+app.use('/api', dashboardFeatureRoutes);
 
 app.get('/api/health', (_req, res) => res.json({ status: 'ok' }));
 

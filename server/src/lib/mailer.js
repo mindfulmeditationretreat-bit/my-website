@@ -1,6 +1,40 @@
 const nodemailer = require('nodemailer');
+const fs = require('fs');
 
 let transporter = null;
+let sendmailTransporter = null;
+
+function isGmailHost(host) {
+  return /gmail\.com$/i.test(String(host || '').trim());
+}
+
+function humanizeSmtpError(err) {
+  const msg = err?.message || String(err);
+  if (/altnames|certificate|CERT_|SSL|TLS/i.test(msg)) {
+    return 'SMTP TLS failed on this host. On cPanel use your mailbox SMTP (mail.yourdomain.com) or set SMTP_SENDMAIL=true.';
+  }
+  return msg;
+}
+
+function findSendmailPath() {
+  if (process.env.SENDMAIL_PATH) return process.env.SENDMAIL_PATH;
+  const candidates = ['/usr/sbin/sendmail', '/usr/lib/sendmail', '/sbin/sendmail'];
+  return candidates.find((p) => {
+    try { return fs.existsSync(p); } catch { return false; }
+  }) || null;
+}
+
+function getSendmailTransporter() {
+  if (sendmailTransporter) return sendmailTransporter;
+  const path = findSendmailPath();
+  if (!path) return null;
+  sendmailTransporter = nodemailer.createTransport({
+    sendmail: true,
+    newline: 'unix',
+    path,
+  });
+  return sendmailTransporter;
+}
 
 function getTransporter() {
   if (transporter) return transporter;
@@ -8,13 +42,50 @@ function getTransporter() {
     console.warn('[mailer] SMTP not configured — emails will be logged to console only');
     return null;
   }
+  const port = Number(process.env.SMTP_PORT) || 587;
+  const host = process.env.SMTP_HOST.trim();
+  const user = process.env.SMTP_USER;
+  const pass = process.env.SMTP_PASS;
+
+  // Gmail: use well-known service config (works locally / unrestricted networks)
+  if (isGmailHost(host)) {
+    transporter = nodemailer.createTransport({
+      service: 'gmail',
+      auth: user ? { user, pass } : undefined,
+    });
+    return transporter;
+  }
+
+  // Custom / cPanel SMTP
   transporter = nodemailer.createTransport({
-    host: process.env.SMTP_HOST,
-    port: Number(process.env.SMTP_PORT) || 587,
-    secure: Number(process.env.SMTP_PORT) === 465,
-    auth: process.env.SMTP_USER ? { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS } : undefined,
+    host,
+    port,
+    secure: port === 465 || process.env.SMTP_SECURE === 'true',
+    auth: user ? { user, pass } : undefined,
+    tls: {
+      servername: host,
+      minVersion: 'TLSv1.2',
+    },
   });
   return transporter;
+}
+
+async function sendViaResend({ to, subject, html, from }) {
+  const key = process.env.RESEND_API_KEY;
+  if (!key) return null;
+  const res = await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${key}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ from, to: [to], subject, html }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(data?.message || `Resend failed: ${res.status}`);
+  }
+  return { messageId: data.id, provider: 'resend' };
 }
 
 // ── Brand palette (mirrors the app's Tailwind theme) ──
@@ -51,7 +122,6 @@ function brand(html, title) {
   <style>
     :root { color-scheme: dark; supported-color-schemes: dark; }
     html, body { margin:0 !important; padding:0 !important; width:100% !important; background-color:${COLORS.bg} !important; }
-    /* Stop iOS/Gmail from auto-recoloring our palette */
     a { color:${COLORS.gold}; }
     @media only screen and (max-width:600px) {
       .sp { padding-left:24px !important; padding-right:24px !important; }
@@ -63,23 +133,18 @@ function brand(html, title) {
     <tr><td align="center" bgcolor="${COLORS.bg}" style="background-color:${COLORS.bg};padding:40px 16px">
 
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${COLORS.card}" style="max-width:560px;background-color:${COLORS.card};border:1px solid ${COLORS.line};border-radius:18px">
-        <!-- Wordmark -->
         <tr><td class="sp" align="center" style="padding:38px 40px 0">
           <span style="font-family:Georgia,'Times New Roman',serif;color:${COLORS.gold};font-size:13px;font-weight:bold;letter-spacing:6px;text-transform:uppercase">MINDFUL</span>
         </td></tr>
-        <!-- Title -->
         <tr><td class="sp" align="center" style="padding:26px 40px 0">
           <h1 style="margin:0;font-family:Georgia,'Times New Roman',serif;font-weight:normal;font-size:27px;line-height:1.25;color:${COLORS.cream}">${title}</h1>
         </td></tr>
-        <!-- Divider -->
         <tr><td class="sp" style="padding:22px 40px 0">
           <div style="height:1px;background-color:rgba(225,179,104,0.3);line-height:1px;font-size:0">&nbsp;</div>
         </td></tr>
-        <!-- Body -->
         <tr><td class="sp" style="padding:22px 40px 6px;font-family:Helvetica,Arial,sans-serif;color:${COLORS.cream};font-size:15px;line-height:1.7">
           ${html}
         </td></tr>
-        <!-- Footer -->
         <tr><td class="sp" style="padding:26px 40px 36px">
           <div style="height:1px;background-color:rgba(225,179,104,0.12);line-height:1px;font-size:0;margin-bottom:18px">&nbsp;</div>
           <p style="margin:0;font-family:Helvetica,Arial,sans-serif;color:rgba(255,235,203,0.5);font-size:12px;line-height:1.6;text-align:center">
@@ -101,17 +166,58 @@ function brand(html, title) {
 
 async function sendMail({ to, subject, title, html }) {
   const body = brand(html, title || subject);
-  const t = getTransporter();
-  if (!t) {
-    console.log('[mailer:DEV]', { to, subject, preview: html.replace(/<[^>]+>/g, '').slice(0, 200) });
-    return { dev: true };
+  const from = process.env.SMTP_FROM || 'Mindful <no-reply@mindful.local>';
+  const payload = { from, to, subject, html: body };
+
+  // 1) Resend HTTPS — works when outbound SMTP is blocked/MITM'd on shared hosting
+  if (process.env.RESEND_API_KEY) {
+    try {
+      return await sendViaResend({ to, subject, html: body, from });
+    } catch (e) {
+      console.error('[mailer] Resend failed', e.message);
+      // fall through to SMTP / sendmail
+    }
   }
-  return t.sendMail({
-    from: process.env.SMTP_FROM || 'Mindful <no-reply@mindful.local>',
-    to,
-    subject,
-    html: body,
-  });
+
+  // 2) Prefer sendmail on cPanel when explicitly enabled
+  const preferSendmail = process.env.SMTP_SENDMAIL === 'true' || process.env.SMTP_SENDMAIL === '1';
+  if (preferSendmail) {
+    const sm = getSendmailTransporter();
+    if (sm) {
+      return sm.sendMail(payload);
+    }
+  }
+
+  // 3) SMTP
+  const t = getTransporter();
+  if (t) {
+    try {
+      return await t.sendMail(payload);
+    } catch (e) {
+      console.error('[mailer] SMTP failed', e.message);
+      // 4) Auto-fallback to local sendmail (common on cPanel)
+      const sm = getSendmailTransporter();
+      if (sm) {
+        console.warn('[mailer] Falling back to sendmail');
+        try {
+          return await sm.sendMail(payload);
+        } catch (e2) {
+          console.error('[mailer] sendmail failed', e2.message);
+        }
+      }
+      throw new Error(humanizeSmtpError(e));
+    }
+  }
+
+  if (!preferSendmail) {
+    const sm = getSendmailTransporter();
+    if (sm) {
+      return sm.sendMail(payload);
+    }
+  }
+
+  console.log('[mailer:DEV]', { to, subject, preview: html.replace(/<[^>]+>/g, '').slice(0, 200) });
+  return { dev: true };
 }
 
 const templates = {

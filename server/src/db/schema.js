@@ -232,11 +232,244 @@ const instructorNotesRelations = relations(instructorNotes, ({ one }) => ({
   author: one(users, { fields: [instructorNotes.authorId], references: [users.id], relationName: 'AuthorNotes' }),
 }));
 
+// ─── Dashboard Structure features ────────────────────────────────────────────
+
+const wellnessAssessments = mysqlTable('wellness_assessments', {
+  id:             int('id').primaryKey().autoincrement(),
+  userId:         int('user_id').notNull(),
+  mental:         json('mental'),
+  physical:       json('physical'),
+  spiritual:      json('spiritual'),
+  mentalScore:    int('mental_score').notNull().default(0),
+  physicalScore:  int('physical_score').notNull().default(0),
+  spiritualScore: int('spiritual_score').notNull().default(0),
+  overallScore:   int('overall_score').notNull().default(0),
+  createdAt:      datetime('created_at', { mode: 'date' }).notNull().default(sql`now()`),
+}, (t) => ({ userIdx: index('wellness_assessments_user_id_idx').on(t.userId) }));
+
+const journeyItems = mysqlTable('journey_items', {
+  id:        int('id').primaryKey().autoincrement(),
+  userId:    int('user_id').notNull(),
+  title:     varchar('title', { length: 255 }).notNull(),
+  category:  varchar('category', { length: 50 }).notNull().default('general'),
+  completed: boolean('completed').notNull().default(false),
+  sortOrder: int('sort_order').notNull().default(0),
+  createdAt: datetime('created_at', { mode: 'date' }).notNull().default(sql`now()`),
+}, (t) => ({ userIdx: index('journey_items_user_id_idx').on(t.userId) }));
+
+const healthProfiles = mysqlTable('health_profiles', {
+  id:                 int('id').primaryKey().autoincrement(),
+  userId:             int('user_id').notNull().unique(),
+  age:                int('age'),
+  sex:                varchar('sex', { length: 50 }),
+  weightKg:           double('weight_kg'),
+  heightCm:           double('height_cm'),
+  bmi:                double('bmi'),
+  ibw:                double('ibw'),
+  bmiCategory:        varchar('bmi_category', { length: 50 }),
+  foodBehaviour:      varchar('food_behaviour', { length: 50 }),
+  foodAllergy:        text('food_allergy'),
+  medicalConditions:  json('medical_conditions'),
+  medicalOther:       text('medical_other'),
+  medication:         text('medication'),
+  drinkingSmoking:    text('drinking_smoking'),
+  fastingOrNoMeat:    text('fasting_or_no_meat'),
+  canCarryTiffin:     boolean('can_carry_tiffin'),
+  medicalConcerns:    text('medical_concerns'),
+  dietPreferences:    json('diet_preferences'),
+  updatedAt:          datetime('updated_at', { mode: 'date' }).notNull().default(sql`now()`),
+});
+
+const mealPlans = mysqlTable('meal_plans', {
+  id:          int('id').primaryKey().autoincrement(),
+  title:       varchar('title', { length: 255 }).notNull(),
+  slug:        varchar('slug', { length: 100 }).notNull().unique(),
+  category:    varchar('category', { length: 50 }).notNull(),
+  description: text('description'),
+  fileUrl:     varchar('file_url', { length: 1000 }),
+  body:        longtext('body'),
+  isPremium:   boolean('is_premium').notNull().default(false),
+  active:      boolean('active').notNull().default(true),
+  createdAt:   datetime('created_at', { mode: 'date' }).notNull().default(sql`now()`),
+}, (t) => ({ catIdx: index('meal_plans_category_idx').on(t.category) }));
+
+const mealPlanLogs = mysqlTable('meal_plan_logs', {
+  id:         int('id').primaryKey().autoincrement(),
+  userId:     int('user_id').notNull(),
+  mealPlanId: int('meal_plan_id').notNull(),
+  loggedOn:   datetime('logged_on', { mode: 'date' }).notNull(),
+  compliant:  boolean('compliant').notNull().default(true),
+  note:       text('note'),
+  createdAt:  datetime('created_at', { mode: 'date' }).notNull().default(sql`now()`),
+}, (t) => ({ userIdx: index('meal_plan_logs_user_idx').on(t.userId) }));
+
+const consultSlots = mysqlTable('consult_slots', {
+  id:           int('id').primaryKey().autoincrement(),
+  instructorId: int('instructor_id').notNull(),
+  startsAt:     datetime('starts_at', { mode: 'date' }).notNull(),
+  endsAt:       datetime('ends_at', { mode: 'date' }).notNull(),
+  mode:         mysqlEnum('mode', ['online', 'in_person']).notNull().default('online'),
+  location:     varchar('location', { length: 255 }),
+  bookedById:   int('booked_by_id'),
+  status:       mysqlEnum('status', ['open', 'booked', 'cancelled']).notNull().default('open'),
+  note:         text('note'),
+  createdAt:    datetime('created_at', { mode: 'date' }).notNull().default(sql`now()`),
+}, (t) => ({
+  instrIdx: index('consult_slots_instructor_idx').on(t.instructorId),
+  startIdx: index('consult_slots_starts_at_idx').on(t.startsAt),
+}));
+
+const meditations = mysqlTable('meditations', {
+  id:          int('id').primaryKey().autoincrement(),
+  title:       varchar('title', { length: 255 }).notNull(),
+  category:    varchar('category', { length: 50 }).notNull(),
+  description: text('description'),
+  audioUrl:    varchar('audio_url', { length: 1000 }),
+  durationSec: int('duration_sec').notNull().default(300),
+  isPremium:   boolean('is_premium').notNull().default(false),
+  active:      boolean('active').notNull().default(true),
+  createdAt:   datetime('created_at', { mode: 'date' }).notNull().default(sql`now()`),
+}, (t) => ({ catIdx: index('meditations_category_idx').on(t.category) }));
+
+const meditationFavorites = mysqlTable('meditation_favorites', {
+  id:           int('id').primaryKey().autoincrement(),
+  userId:       int('user_id').notNull(),
+  meditationId: int('meditation_id').notNull(),
+  createdAt:    datetime('created_at', { mode: 'date' }).notNull().default(sql`now()`),
+}, (t) => ({ uniq: uniqueIndex('meditation_favorites_unique').on(t.userId, t.meditationId) }));
+
+const meditationPlays = mysqlTable('meditation_plays', {
+  id:           int('id').primaryKey().autoincrement(),
+  userId:       int('user_id').notNull(),
+  meditationId: int('meditation_id').notNull(),
+  playedAt:     datetime('played_at', { mode: 'date' }).notNull().default(sql`now()`),
+}, (t) => ({ userIdx: index('meditation_plays_user_idx').on(t.userId, t.playedAt) }));
+
+const dailyPractices = mysqlTable('daily_practices', {
+  id:               int('id').primaryKey().autoincrement(),
+  practiceDate:     datetime('practice_date', { mode: 'date' }).notNull().unique(),
+  practiceText:     varchar('practice_text', { length: 500 }).notNull(),
+  reflectionPrompt: varchar('reflection_prompt', { length: 500 }).notNull(),
+  challengeText:    varchar('challenge_text', { length: 500 }).notNull(),
+});
+
+const dailyPracticeLogs = mysqlTable('daily_practice_logs', {
+  id:            int('id').primaryKey().autoincrement(),
+  userId:        int('user_id').notNull(),
+  practiceDate:  datetime('practice_date', { mode: 'date' }).notNull(),
+  practiceDone:  boolean('practice_done').notNull().default(false),
+  challengeDone: boolean('challenge_done').notNull().default(false),
+  reflection:    text('reflection'),
+  createdAt:     datetime('created_at', { mode: 'date' }).notNull().default(sql`now()`),
+}, (t) => ({ uniq: uniqueIndex('daily_practice_logs_unique').on(t.userId, t.practiceDate) }));
+
+const destinations = mysqlTable('destinations', {
+  id:        int('id').primaryKey().autoincrement(),
+  country:   varchar('country', { length: 100 }).notNull(),
+  name:      varchar('name', { length: 255 }).notNull(),
+  slug:      varchar('slug', { length: 120 }).notNull().unique(),
+  summary:   text('summary'),
+  imageUrl:  varchar('image_url', { length: 1000 }),
+  active:    boolean('active').notNull().default(true),
+  createdAt: datetime('created_at', { mode: 'date' }).notNull().default(sql`now()`),
+}, (t) => ({ countryIdx: index('destinations_country_idx').on(t.country) }));
+
+const retreats = mysqlTable('retreats', {
+  id:                   int('id').primaryKey().autoincrement(),
+  destinationId:        int('destination_id'),
+  title:                varchar('title', { length: 255 }).notNull(),
+  slug:                 varchar('slug', { length: 120 }).notNull().unique(),
+  category:             varchar('category', { length: 50 }).notNull(),
+  country:              varchar('country', { length: 100 }).notNull(),
+  description:          text('description'),
+  durationDays:         int('duration_days').notNull().default(7),
+  priceCents:           int('price_cents').notNull().default(0),
+  currency:             varchar('currency', { length: 10 }).notNull().default('USD'),
+  meditationIntensity:  mysqlEnum('meditation_intensity', ['gentle', 'moderate', 'intense']).notNull().default('moderate'),
+  englishSpoken:        boolean('english_spoken').notNull().default(true),
+  womenAllowed:         boolean('women_allowed').notNull().default(true),
+  privateRoom:          boolean('private_room').notNull().default(false),
+  imageUrl:             varchar('image_url', { length: 1000 }),
+  isMonastery:          boolean('is_monastery').notNull().default(false),
+  active:               boolean('active').notNull().default(true),
+  createdAt:            datetime('created_at', { mode: 'date' }).notNull().default(sql`now()`),
+}, (t) => ({
+  countryIdx: index('retreats_country_idx').on(t.country),
+  catIdx:     index('retreats_category_idx').on(t.category),
+}));
+
+const retreatSaves = mysqlTable('retreat_saves', {
+  id:        int('id').primaryKey().autoincrement(),
+  userId:    int('user_id').notNull(),
+  retreatId: int('retreat_id').notNull(),
+  createdAt: datetime('created_at', { mode: 'date' }).notNull().default(sql`now()`),
+}, (t) => ({ uniq: uniqueIndex('retreat_saves_unique').on(t.userId, t.retreatId) }));
+
+const retreatWaitlist = mysqlTable('retreat_waitlist', {
+  id:        int('id').primaryKey().autoincrement(),
+  userId:    int('user_id').notNull(),
+  retreatId: int('retreat_id').notNull(),
+  note:      text('note'),
+  createdAt: datetime('created_at', { mode: 'date' }).notNull().default(sql`now()`),
+}, (t) => ({ uniq: uniqueIndex('retreat_waitlist_unique').on(t.userId, t.retreatId) }));
+
+const journalEntries = mysqlTable('journal_entries', {
+  id:             int('id').primaryKey().autoincrement(),
+  userId:         int('user_id').notNull(),
+  mood:           int('mood'),
+  gratitude:      text('gratitude'),
+  meditationNote: text('meditation_note'),
+  energy:         int('energy'),
+  body:           text('body'),
+  recordedAt:     datetime('recorded_at', { mode: 'date' }).notNull().default(sql`now()`),
+}, (t) => ({ userIdx: index('journal_entries_user_idx').on(t.userId, t.recordedAt) }));
+
+const events = mysqlTable('events', {
+  id:          int('id').primaryKey().autoincrement(),
+  title:       varchar('title', { length: 255 }).notNull(),
+  type:        varchar('type', { length: 50 }).notNull(),
+  description: text('description'),
+  startsAt:    datetime('starts_at', { mode: 'date' }).notNull(),
+  endsAt:      datetime('ends_at', { mode: 'date' }),
+  mode:        mysqlEnum('mode', ['online', 'in_person', 'hybrid']).notNull().default('online'),
+  location:    varchar('location', { length: 255 }),
+  linkUrl:     varchar('link_url', { length: 1000 }),
+  active:      boolean('active').notNull().default(true),
+  createdAt:   datetime('created_at', { mode: 'date' }).notNull().default(sql`now()`),
+}, (t) => ({ startIdx: index('events_starts_at_idx').on(t.startsAt) }));
+
+const courses = mysqlTable('courses', {
+  id:          int('id').primaryKey().autoincrement(),
+  title:       varchar('title', { length: 255 }).notNull(),
+  slug:        varchar('slug', { length: 120 }).notNull().unique(),
+  description: text('description'),
+  priceCents:  int('price_cents').notNull().default(0),
+  currency:    varchar('currency', { length: 10 }).notNull().default('NPR'),
+  lessons:     json('lessons'),
+  isPremium:   boolean('is_premium').notNull().default(true),
+  active:      boolean('active').notNull().default(true),
+  createdAt:   datetime('created_at', { mode: 'date' }).notNull().default(sql`now()`),
+});
+
+const courseEnrollments = mysqlTable('course_enrollments', {
+  id:        int('id').primaryKey().autoincrement(),
+  userId:    int('user_id').notNull(),
+  courseId:  int('course_id').notNull(),
+  status:    mysqlEnum('status', ['enrolled', 'completed', 'cancelled']).notNull().default('enrolled'),
+  createdAt: datetime('created_at', { mode: 'date' }).notNull().default(sql`now()`),
+}, (t) => ({ uniq: uniqueIndex('course_enrollments_unique').on(t.userId, t.courseId) }));
+
 module.exports = {
   users, programs, subscriptions,
   passwordResetTokens, verificationTokens,
   resources, userResources, messages,
   notifications, progressEntries, instructorNotes,
+  wellnessAssessments, journeyItems, healthProfiles,
+  mealPlans, mealPlanLogs, consultSlots,
+  meditations, meditationFavorites, meditationPlays,
+  dailyPractices, dailyPracticeLogs,
+  destinations, retreats, retreatSaves, retreatWaitlist,
+  journalEntries, events, courses, courseEnrollments,
   usersRelations, programsRelations, subscriptionsRelations,
   passwordResetTokensRelations, verificationTokensRelations,
   resourcesRelations, userResourcesRelations, messagesRelations,

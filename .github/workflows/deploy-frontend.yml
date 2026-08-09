@@ -1,60 +1,100 @@
 name: Deploy Frontend to cPanel
 
+# Push to main → build Next.js standalone, upload, restart on cPanel via SSH
 on:
   push:
-    branches:
-      - main
+    branches: [main]
     paths:
       - 'client/**'
       - '.github/workflows/deploy-frontend.yml'
+  workflow_dispatch:
 
 jobs:
   deploy-frontend:
-    name: Build and deploy Next.js
+    name: Build & deploy Next.js
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
+      - name: Checkout
         uses: actions/checkout@v4
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
+          cache: npm
+          cache-dependency-path: client/package-lock.json
 
-      - name: Install dependencies
+      - name: Install
         working-directory: client
-        run: npm install
+        run: npm ci
 
-      - name: Build Next.js
+      - name: Build
         working-directory: client
         env:
-          NEXT_PUBLIC_API_URL: https://api.mindfulmeditationretreat.org/api
-        run: npm run build
+          NEXT_PUBLIC_API_URL: ${{ secrets.NEXT_PUBLIC_API_URL }}
+          INTERNAL_API_URL: ${{ secrets.INTERNAL_API_URL }}
+        run: |
+          if [ -z "$NEXT_PUBLIC_API_URL" ]; then
+            echo "Missing secret NEXT_PUBLIC_API_URL (e.g. https://api.yourdomain.com/api)"
+            exit 1
+          fi
+          npm run build
 
-      - name: Package standalone output
+      - name: Package standalone
         run: |
           cp -r client/.next/static client/.next/standalone/.next/static
-          cp -r client/public client/.next/standalone/public
+          if [ -d client/public ]; then
+            cp -r client/public client/.next/standalone/public
+          fi
           tar -czf /tmp/frontend.tar.gz -C client/.next/standalone .
 
-      - name: Setup SSH key
+      - name: Setup SSH
         run: |
           mkdir -p ~/.ssh
           echo "${{ secrets.CPANEL_SSH_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
-          ssh-keyscan -p ${{ secrets.CPANEL_SSH_PORT }} ${{ secrets.CPANEL_HOST }} >> ~/.ssh/known_hosts 2>/dev/null
+          ssh-keyscan -p "${{ secrets.CPANEL_SSH_PORT }}" "${{ secrets.CPANEL_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
 
-      - name: Upload archive
+      - name: Upload
         run: |
-          scp -i ~/.ssh/deploy_key \
-              -P ${{ secrets.CPANEL_SSH_PORT }} \
-              /tmp/frontend.tar.gz \
-              ${{ secrets.CPANEL_USERNAME }}@${{ secrets.CPANEL_HOST }}:~/frontend.tar.gz
+          scp -i ~/.ssh/deploy_key -P "${{ secrets.CPANEL_SSH_PORT }}" \
+            /tmp/frontend.tar.gz \
+            "${{ secrets.CPANEL_USERNAME }}@${{ secrets.CPANEL_HOST }}:~/frontend.tar.gz"
 
-      - name: Extract and restart
+      - name: Extract & restart
         run: |
-          ssh -i ~/.ssh/deploy_key \
-              -p ${{ secrets.CPANEL_SSH_PORT }} \
-              ${{ secrets.CPANEL_USERNAME }}@${{ secrets.CPANEL_HOST }} \
-              'mkdir -p ~/nextjs && tar -xzf ~/frontend.tar.gz -C ~/nextjs && rm ~/frontend.tar.gz && PM2=/home/mindful1/npm-global/bin/pm2 && NODE=/opt/alt/alt-nodejs20/root/usr/bin/node && $PM2 delete mindfull-frontend 2>/dev/null || true && cd ~/nextjs && PORT=3000 HOSTNAME=127.0.0.1 INTERNAL_API_URL=http://127.0.0.1:5050/api $PM2 start server.js --name mindfull-frontend --interpreter $NODE && $PM2 save --force && echo "Frontend deployed"'
+          ssh -i ~/.ssh/deploy_key -p "${{ secrets.CPANEL_SSH_PORT }}" \
+            "${{ secrets.CPANEL_USERNAME }}@${{ secrets.CPANEL_HOST }}" \
+            "export NODE_BIN='${{ secrets.NODE_BIN }}' PM2_BIN='${{ secrets.PM2_BIN }}' FRONTEND_DIR='${{ secrets.FRONTEND_DIR }}' FRONTEND_PORT='${{ secrets.FRONTEND_PORT }}' INTERNAL_API_URL='${{ secrets.INTERNAL_API_URL }}' API_PORT='${{ secrets.API_PORT }}'; bash -s" << 'EOF'
+          set -e
+          FRONTEND_DIR="${FRONTEND_DIR:-$HOME/nextjs}"
+          FRONTEND_PORT="${FRONTEND_PORT:-3000}"
+          API_PORT="${API_PORT:-5050}"
+          INTERNAL_API_URL="${INTERNAL_API_URL:-http://127.0.0.1:${API_PORT}/api}"
+          NODE_BIN="${NODE_BIN:-$(command -v node || true)}"
+          PM2_BIN="${PM2_BIN:-$(command -v pm2 || true)}"
+          if [ -z "$NODE_BIN" ] || [ ! -x "$NODE_BIN" ]; then
+            for c in /opt/alt/alt-nodejs20/root/usr/bin/node /opt/alt/alt-nodejs18/root/usr/bin/node /usr/bin/node; do
+              [ -x "$c" ] && NODE_BIN="$c" && break
+            done
+          fi
+          if [ -z "$PM2_BIN" ] || [ ! -x "$PM2_BIN" ]; then
+            for c in "$HOME/npm-global/bin/pm2" /usr/bin/pm2; do
+              [ -x "$c" ] && PM2_BIN="$c" && break
+            done
+          fi
+          mkdir -p "$FRONTEND_DIR"
+          tar -xzf ~/frontend.tar.gz -C "$FRONTEND_DIR"
+          rm -f ~/frontend.tar.gz
+          cd "$FRONTEND_DIR"
+          if [ -n "$PM2_BIN" ] && [ -x "$PM2_BIN" ]; then
+            "$PM2_BIN" delete mindfull-frontend 2>/dev/null || true
+            PORT="$FRONTEND_PORT" HOSTNAME=127.0.0.1 INTERNAL_API_URL="$INTERNAL_API_URL" \
+              "$PM2_BIN" start server.js --name mindfull-frontend --interpreter "$NODE_BIN"
+            "$PM2_BIN" save --force || true
+          else
+            echo "PM2 not found — start frontend from cPanel → Setup Node.js App (startup: server.js in $FRONTEND_DIR)"
+          fi
+          echo "Frontend deploy done"
+          EOF

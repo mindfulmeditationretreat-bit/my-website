@@ -1,63 +1,123 @@
+'use client';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { cookies } from 'next/headers';
-import { requireUser } from '@/lib/auth';
+import { api } from '@/lib/api';
+import ScoreRing from '@/components/ScoreRing';
 
-const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+export default function UserDashboardPage() {
+  const [user, setUser] = useState(null);
+  const [data, setData] = useState(null);
+  const [subs, setSubs] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-async function serverFetch(path, token) {
-  if (!token) return null;
-  const res = await fetch(`${API}${path}`, {
-    headers: { Cookie: `token=${token}` },
-    cache: 'no-store',
-  });
-  if (!res.ok) return null;
-  return res.json();
-}
+  useEffect(() => {
+    Promise.all([
+      api.get('/users/me').catch(() => null),
+      api.get('/wellness/scores').catch(() => null),
+      api.get('/subscriptions/mine').catch(() => []),
+    ]).then(([u, w, s]) => {
+      setUser(u);
+      setData(w);
+      setSubs(Array.isArray(s) ? s : []);
+      setLoading(false);
+    });
+  }, []);
 
-export default async function UserDashboard() {
-  const user = await requireUser();
-  const token = cookies().get('token')?.value;
+  async function toggleItem(id) {
+    const res = await api.patch(`/wellness/journey/${id}`);
+    setData((d) => ({
+      ...d,
+      journey: (d?.journey || []).map((j) => (j.id === id ? { ...j, completed: res.completed } : j)),
+    }));
+  }
 
-  const [subs, progressData, recentNotifs] = await Promise.all([
-    serverFetch('/subscriptions/mine', token) ?? [],
-    serverFetch('/progress', token),
-    serverFetch('/notifications', token),
-  ]);
+  if (loading) return <p className="text-cream/60">Loading…</p>;
 
-  const subsArr = Array.isArray(subs) ? subs : [];
-  const active = subsArr.find((s) => s.status === 'trialing' || s.status === 'active');
+  const firstName = user?.fullName?.split(' ')[0] || 'friend';
+  const scores = data?.scores;
+  const journey = data?.journey || [];
+  const active = subs.find((s) => s.status === 'trialing' || s.status === 'active');
   const trialDaysLeft = active?.trialEndsAt
-    ? Math.max(0, Math.ceil((new Date(active.trialEndsAt) - new Date()) / (1000 * 60 * 60 * 24)))
+    ? Math.max(0, Math.ceil((new Date(active.trialEndsAt) - new Date()) / 86400000))
     : null;
-
-  const entriesArr = progressData?.entries ?? [];
-  const recentEntries = entriesArr.slice(0, 5);
-  const meditationStreak = progressData?.meditationStreak ?? 0;
-  const notifications = (recentNotifs?.notifications ?? []).slice(0, 5);
 
   return (
     <>
       <div className="mb-10">
         <p className="text-gold tracking-[0.3em] text-xs uppercase mb-2">Your dashboard</p>
-        <h1 className="heading text-4xl font-light mb-1">
-          Welcome, {user.fullName?.split(' ')[0] || 'friend'}.
-        </h1>
-        <p className="text-cream/50 text-sm">Here's a calm overview of your wellness journey.</p>
+        <h1 className="heading text-4xl font-light mb-1">Welcome, {firstName}.</h1>
+        <p className="text-cream/50 text-sm">Your wellness journey, quietly organized.</p>
       </div>
 
-      {!user.emailVerified && (
+      {user && !user.emailVerified && (
         <div className="card mb-6 border-gold/30">
           <p className="text-gold text-sm">Please verify your email to unlock all features.</p>
         </div>
       )}
 
-      {/* Stat cards */}
+      {!scores ? (
+        <div className="card mb-8 text-center py-10">
+          <p className="heading text-2xl mb-2">Discover your Mindful Score</p>
+          <p className="text-cream/60 text-sm mb-6 max-w-md mx-auto">
+            A short mental, physical, and spiritual assessment unlocks your personalized journey.
+          </p>
+          <Link href="/dashboard/assessment" className="btn-primary">Take assessment</Link>
+        </div>
+      ) : (
+        <div className="card mb-8">
+          <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
+            <div>
+              <p className="text-gold tracking-[0.3em] text-xs uppercase mb-1">Mindful Score</p>
+              <h2 className="heading text-3xl font-light">{scores.overall}<span className="text-cream/40 text-xl">/100</span></h2>
+            </div>
+            <Link href="/dashboard/assessment" className="text-gold text-sm hover:underline">Retake assessment →</Link>
+          </div>
+          <div className="grid grid-cols-3 gap-4 justify-items-center">
+            <ScoreRing score={scores.mental} label="Mental" size={100} />
+            <ScoreRing score={scores.physical} label="Physical" size={100} />
+            <ScoreRing score={scores.spiritual} label="Spiritual" size={100} />
+          </div>
+        </div>
+      )}
+
+      {journey.length > 0 && (
+        <div className="card mb-8">
+          <p className="text-gold tracking-[0.3em] text-xs uppercase mb-2">Your recommended journey</p>
+          <h2 className="heading text-2xl mb-1">Current goal</h2>
+          <p className="text-cream/70 text-sm mb-5">{data?.currentGoal || 'Stay consistent'}</p>
+          <ul className="space-y-3">
+            {journey.map((j) => (
+              <li key={j.id}>
+                <button
+                  type="button"
+                  onClick={() => toggleItem(j.id)}
+                  className={
+                    'w-full flex items-center gap-3 rounded-xl border px-4 py-3 text-left transition ' +
+                    (j.completed
+                      ? 'border-gold/40 bg-gold/10 text-cream/70'
+                      : 'border-gold/15 bg-black/20 text-cream hover:border-gold/40')
+                  }
+                >
+                  <span className={
+                    'w-5 h-5 rounded-full border flex items-center justify-center text-xs shrink-0 ' +
+                    (j.completed ? 'border-gold bg-gold text-ink' : 'border-gold/40')
+                  }>
+                    {j.completed ? '✓' : ''}
+                  </span>
+                  <span className={j.completed ? 'line-through' : ''}>{j.title}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         <div className="card">
           <p className="text-cream/50 text-xs uppercase tracking-widest mb-2">Subscription</p>
           {active ? (
             <>
-              <p className="heading text-xl">{active.program.name}</p>
+              <p className="heading text-xl">{active.program?.name}</p>
               <p className="text-gold/80 text-xs uppercase tracking-widest mt-1">{active.status}</p>
             </>
           ) : (
@@ -68,67 +128,33 @@ export default async function UserDashboard() {
           )}
         </div>
         <div className="card">
-          <p className="text-cream/50 text-xs uppercase tracking-widest mb-3">Trial Days Left</p>
-          <p className="heading text-3xl sm:text-4xl text-cream">{trialDaysLeft != null ? trialDaysLeft : '—'}</p>
-          <p className="text-cream/40 text-xs mt-1">until trial ends</p>
+          <p className="text-cream/50 text-xs uppercase tracking-widest mb-3">Trial days left</p>
+          <p className="heading text-3xl text-cream">{trialDaysLeft != null ? trialDaysLeft : '—'}</p>
         </div>
-        <div className="card">
-          <p className="text-cream/50 text-xs uppercase tracking-widest mb-3">Meditation Streak</p>
-          <p className="heading text-3xl sm:text-4xl text-gold">{meditationStreak}</p>
-          <p className="text-cream/40 text-xs mt-1">consecutive days</p>
-        </div>
-        <div className="card">
-          <p className="text-cream/50 text-xs uppercase tracking-widest mb-2">Provider</p>
-          <p className="heading text-lg">{active?.instructor?.fullName || 'Not assigned'}</p>
-          {active?.instructor?.expertise && (
-            <p className="text-cream/60 text-xs mt-1">{active.instructor.expertise}</p>
-          )}
-        </div>
+        <Link href="/dashboard/meditation" className="card hover:border-gold/40 transition block">
+          <p className="text-cream/50 text-xs uppercase tracking-widest mb-2">Meditation</p>
+          <p className="heading text-xl text-gold">Practice →</p>
+        </Link>
+        <Link href="/dashboard/travel" className="card hover:border-gold/40 transition block">
+          <p className="text-cream/50 text-xs uppercase tracking-widest mb-2">Travel</p>
+          <p className="heading text-xl text-gold">Explore →</p>
+        </Link>
       </div>
 
-      {/* Activity feed */}
-      <div className="grid md:grid-cols-2 gap-6">
-        <div className="card">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="heading text-xl">Recent activity</h2>
-            <Link href="/dashboard/progress" className="text-gold text-xs hover:underline">View all →</Link>
-          </div>
-          {recentEntries.length === 0 ? (
-            <p className="text-cream/60 text-sm">No progress entries yet. <Link href="/dashboard/progress" className="text-gold hover:underline">Start tracking →</Link></p>
-          ) : (
-            <div className="space-y-2">
-              {recentEntries.map((e) => (
-                <div key={e.id} className="flex items-center justify-between py-1.5 border-b border-gold/10 last:border-0">
-                  <p className="text-sm text-cream/80">
-                    <span className="text-gold/70 uppercase text-xs tracking-widest mr-2">{e.type}</span>
-                    {e.value ?? '—'}
-                    {e.note && <span className="text-cream/50"> · {e.note}</span>}
-                  </p>
-                  <p className="text-cream/40 text-xs ml-3 flex-shrink-0">{new Date(e.recordedAt).toLocaleDateString()}</p>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        <div className="card">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="heading text-xl">Notifications</h2>
-            <Link href="/dashboard/notifications" className="text-gold text-xs hover:underline">View all →</Link>
-          </div>
-          {notifications.length === 0 ? (
-            <p className="text-cream/60 text-sm">You're all caught up.</p>
-          ) : (
-            <div className="space-y-2">
-              {notifications.map((n) => (
-                <div key={n.id} className={'py-1.5 border-b border-gold/10 last:border-0 ' + (!n.readAt ? 'opacity-100' : 'opacity-60')}>
-                  <p className="text-sm text-cream font-medium">{n.title}</p>
-                  <p className="text-cream/60 text-xs">{n.body}</p>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
+      <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        {[
+          { href: '/dashboard/diet', title: 'Diet hub', desc: 'Profile, meal plans, consult booking' },
+          { href: '/dashboard/meditation', title: 'Meditation center', desc: 'Guided sits & daily practice' },
+          { href: '/dashboard/travel', title: 'Spiritual travel', desc: 'Retreats & monastery finder' },
+          { href: '/dashboard/journal', title: 'Journal', desc: 'Mood, gratitude, reflections' },
+          { href: '/dashboard/events', title: 'Events', desc: 'Retreats, talks, sessions' },
+          { href: '/dashboard/courses', title: 'Courses', desc: 'Learn once, keep forever' },
+        ].map((x) => (
+          <Link key={x.href} href={x.href} className="card hover:border-gold/40 transition block">
+            <h3 className="heading text-xl mb-1">{x.title}</h3>
+            <p className="text-cream/50 text-sm">{x.desc}</p>
+          </Link>
+        ))}
       </div>
     </>
   );

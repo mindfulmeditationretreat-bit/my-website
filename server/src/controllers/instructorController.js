@@ -36,7 +36,14 @@ async function myAssignedUsers(req, res, next) {
       userIds.length ? db.query.users.findMany({ where: (t, { inArray }) => inArray(t.id, userIds), columns: { id: true, email: true, fullName: true, photoUrl: true, wellnessGoals: true } }) : [],
       progIds.length ? db.query.programs.findMany({ where: (t, { inArray }) => inArray(t.id, progIds), columns: { id: true, name: true, slug: true } }) : [],
     ]);
-    const userMap = Object.fromEntries(usersData.map(u => [u.id, u]));
+    const userMap = Object.fromEntries(usersData.map(u => [u.id, {
+      ...u,
+      wellnessGoals: Array.isArray(u.wellnessGoals)
+        ? u.wellnessGoals
+        : (typeof u.wellnessGoals === 'string'
+            ? (() => { try { const p = JSON.parse(u.wellnessGoals); return Array.isArray(p) ? p : []; } catch { return []; } })()
+            : []),
+    }]));
     const progMap = Object.fromEntries(progsData.map(p => [p.id, p]));
     res.json(subs.map(s => ({ ...s, user: userMap[s.userId] || null, program: progMap[s.programId] || null })));
   } catch (err) { next(err); }
@@ -50,17 +57,32 @@ async function getAssignedUser(req, res, next) {
     });
     if (!sub) return res.status(404).json({ message: 'Not found or not assigned to you' });
 
-    const [userRow, progRow, notes] = await Promise.all([
+    const [userRow, progRow, notes, healthProfile] = await Promise.all([
       db.query.users.findFirst({ where: (t, { eq }) => eq(t.id, userId), columns: { id: true, email: true, fullName: true, photoUrl: true, age: true, gender: true, wellnessGoals: true, country: true, travelCountry: true, phone: true } }),
       db.query.programs.findFirst({ where: (t, { eq }) => eq(t.id, sub.programId) }),
       db.query.instructorNotes.findMany({ where: (t, { eq }) => eq(t.userId, userId), orderBy: (t, { desc }) => desc(t.createdAt) }),
+      db.query.healthProfiles.findFirst({ where: (t, { eq }) => eq(t.userId, userId) }),
     ]);
     const authorIds = [...new Set(notes.map(n => n.authorId))];
     const authorsData = authorIds.length
       ? await db.query.users.findMany({ where: (t, { inArray }) => inArray(t.id, authorIds), columns: { id: true, fullName: true } })
       : [];
     const authorMap = Object.fromEntries(authorsData.map(a => [a.id, a]));
-    res.json({ ...sub, user: userRow, program: progRow, notes: notes.map(n => ({ ...n, author: authorMap[n.authorId] || null })) });
+    const normalizedUser = userRow ? {
+      ...userRow,
+      wellnessGoals: Array.isArray(userRow.wellnessGoals)
+        ? userRow.wellnessGoals
+        : (typeof userRow.wellnessGoals === 'string'
+            ? (() => { try { const p = JSON.parse(userRow.wellnessGoals); return Array.isArray(p) ? p : []; } catch { return []; } })()
+            : []),
+    } : null;
+    res.json({
+      ...sub,
+      user: normalizedUser,
+      program: progRow,
+      notes: notes.map(n => ({ ...n, author: authorMap[n.authorId] || null })),
+      healthProfile: healthProfile || null,
+    });
   } catch (err) { next(err); }
 }
 

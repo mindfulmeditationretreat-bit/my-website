@@ -64,7 +64,17 @@ export default function AdminUserEditPage() {
       setUser(u);
       setInstructors(instrs);
       setPrograms(progs.filter((p) => p.active));
-      setForm({ fullName: u.fullName || '', role: u.role, active: u.active, expertise: u.expertise || '', bio: u.bio || '', availability: u.availability || '' });
+      setForm({
+        fullName: u.fullName || '',
+        role: u.role,
+        active: u.active,
+        country: u.country || '',
+        travelCountry: u.travelCountry || '',
+        phone: u.phone || '',
+        expertise: u.expertise || '',
+        bio: u.bio || '',
+        availability: u.availability || '',
+      });
     } catch (err) {
       setError(err.message || 'Failed to load user');
     } finally {
@@ -167,6 +177,18 @@ export default function AdminUserEditPage() {
           <div>
             <label className="label">Role</label>
             <Select options={ROLES} value={form.role} onChange={(v) => setForm({ ...form, role: v })} />
+          </div>
+          <div>
+            <label className="label">Your country <span className="text-cream/40 font-normal">(optional)</span></label>
+            <input className="input" placeholder="e.g. United States" value={form.country || ''} onChange={(e) => setForm({ ...form, country: e.target.value })} />
+          </div>
+          <div>
+            <label className="label">Country interested to travel <span className="text-cream/40 font-normal">(optional)</span></label>
+            <input className="input" placeholder="e.g. Nepal" value={form.travelCountry || ''} onChange={(e) => setForm({ ...form, travelCountry: e.target.value })} />
+          </div>
+          <div>
+            <label className="label">Phone <span className="text-cream/40 font-normal">(optional)</span></label>
+            <input className="input" type="tel" placeholder="e.g. +1 9435679832" value={form.phone || ''} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
           </div>
         </div>
 

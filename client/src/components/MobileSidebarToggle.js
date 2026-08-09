@@ -8,6 +8,13 @@ import { usePathname } from 'next/navigation';
 const NAV = {
   user: [
     { href: '/dashboard',               label: 'Overview',       exact: true },
+    { href: '/dashboard/assessment',    label: 'Assessment' },
+    { href: '/dashboard/diet',          label: 'Diet hub' },
+    { href: '/dashboard/meditation',    label: 'Meditation' },
+    { href: '/dashboard/travel',        label: 'Travel' },
+    { href: '/dashboard/journal',       label: 'Journal' },
+    { href: '/dashboard/events',        label: 'Events' },
+    { href: '/dashboard/courses',       label: 'Courses' },
     { href: '/dashboard/programs',      label: 'My Programs' },
     { href: '/dashboard/resources',     label: 'Resources' },
     { href: '/dashboard/messages',      label: 'Messages' },
@@ -19,6 +26,7 @@ const NAV = {
     { href: '/dashboard/provider/users',     label: 'My Users' },
     { href: '/dashboard/messages',           label: 'Messages' },
     { href: '/dashboard/provider/resources', label: 'Resources' },
+    { href: '/dashboard/provider/slots',     label: 'Consult slots' },
   ],
   admin: [
     { href: '/dashboard/admin',               label: 'Overview',      exact: true },
@@ -27,6 +35,7 @@ const NAV = {
     { href: '/dashboard/admin/programs',      label: 'Programs' },
     { href: '/dashboard/admin/subscriptions', label: 'Subscriptions' },
     { href: '/dashboard/admin/resources',     label: 'Resources' },
+    { href: '/dashboard/admin/wellness',      label: 'Wellness content' },
     { href: '/dashboard/admin/analytics',     label: 'Analytics' },
     { href: '/dashboard/admin/broadcasts',    label: 'Broadcasts' },
   ],

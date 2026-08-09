@@ -136,7 +136,7 @@ async function createUser(req, res, next) {
 async function updateUser(req, res, next) {
   try {
     const id = Number(req.params.id);
-    const { fullName, role, active, country, travelCountry, expertise, bio, availability } = req.body;
+    const { fullName, role, active, country, travelCountry, phone, expertise, bio, availability } = req.body;
 
     const existing = await db.query.users.findFirst({ where: (t, { eq }) => eq(t.id, id) });
     if (!existing) return res.status(404).json({ message: 'Not found' });
@@ -147,6 +147,7 @@ async function updateUser(req, res, next) {
     if (active !== undefined) data.active = !!active;
     if (country !== undefined) data.country = country || null;
     if (travelCountry !== undefined) data.travelCountry = travelCountry || null;
+    if (phone !== undefined) data.phone = phone || null;
     if (expertise !== undefined) data.expertise = expertise;
     if (bio !== undefined) data.bio = bio;
     if (availability !== undefined) data.availability = availability;
