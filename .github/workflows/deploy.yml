@@ -105,6 +105,9 @@ jobs:
             echo "IMAGEKIT_PRIVATE_KEY=${IMAGEKIT_PRIVATE_KEY}"
             echo "IMAGEKIT_URL_ENDPOINT=${IMAGEKIT_URL_ENDPOINT}"
           } > /tmp/production.env
+          ssh -i ~/.ssh/deploy_key -p "${{ secrets.CPANEL_SSH_PORT }}" \
+            "${{ secrets.CPANEL_USERNAME }}@${{ secrets.CPANEL_HOST }}" \
+            "/bin/mkdir -p /home2/mindful1/api"
           scp -i ~/.ssh/deploy_key -P "${{ secrets.CPANEL_SSH_PORT }}" \
             /tmp/production.env \
             "${{ secrets.CPANEL_USERNAME }}@${{ secrets.CPANEL_HOST }}:~/api/.env"
@@ -114,45 +117,41 @@ jobs:
           RUN_MIGRATE: ${{ steps.changes.outputs.migrations }}
           RUN_SEED: ${{ steps.changes.outputs.seed }}
         run: |
-          ssh -i ~/.ssh/deploy_key -p "${{ secrets.CPANEL_SSH_PORT }}" \
-            "${{ secrets.CPANEL_USERNAME }}@${{ secrets.CPANEL_HOST }}" \
-            "export RUN_MIGRATE='${RUN_MIGRATE}' RUN_SEED='${RUN_SEED}' NODE_BIN='${{ secrets.NODE_BIN }}' PM2_BIN='${{ secrets.PM2_BIN }}' API_DIR='${{ secrets.API_DIR }}'; /bin/bash -s" << 'EOF'
+          cat > /tmp/deploy-api.sh << 'SCRIPT'
+          #!/bin/bash
           set -e
-          export PATH="/usr/local/bin:/usr/bin:/bin:$HOME/npm-global/bin:/opt/alt/alt-nodejs20/root/usr/bin:/opt/alt/alt-nodejs18/root/usr/bin:$PATH"
-          API_DIR="${API_DIR:-$HOME/api}"
-          NODE_BIN="${NODE_BIN:-$(command -v node || true)}"
-          PM2_BIN="${PM2_BIN:-$(command -v pm2 || true)}"
-          if [ -z "$NODE_BIN" ] || [ ! -x "$NODE_BIN" ]; then
-            for c in /opt/alt/alt-nodejs20/root/usr/bin/node /opt/alt/alt-nodejs18/root/usr/bin/node /usr/bin/node; do
-              [ -x "$c" ] && NODE_BIN="$c" && break
-            done
-          fi
-          if [ -z "$PM2_BIN" ] || [ ! -x "$PM2_BIN" ]; then
-            for c in "$HOME/npm-global/bin/pm2" /usr/bin/pm2; do
-              [ -x "$c" ] && PM2_BIN="$c" && break
-            done
-          fi
+          export PATH="/usr/local/bin:/usr/bin:/bin:/home2/mindful1/npm-global/bin:/opt/alt/alt-nodejs20/root/usr/bin:/opt/alt/alt-nodejs18/root/usr/bin"
+          API_DIR="${API_DIR:-/home2/mindful1/api}"
+          NODE_BIN="${NODE_BIN:-/opt/alt/alt-nodejs20/root/usr/bin/node}"
+          PM2_BIN="${PM2_BIN:-/home2/mindful1/npm-global/bin/pm2}"
           echo "NODE_BIN=$NODE_BIN"
           echo "PM2_BIN=$PM2_BIN"
           echo "API_DIR=$API_DIR"
-          mkdir -p "$API_DIR"
-          tar -xzf ~/api.tar.gz -C "$API_DIR"
-          rm -f ~/api.tar.gz
+          /bin/mkdir -p "$API_DIR"
+          /bin/tar -xzf /home2/mindful1/api.tar.gz -C "$API_DIR"
+          /bin/rm -f /home2/mindful1/api.tar.gz
           cd "$API_DIR"
-          "$NODE_BIN" "$(dirname "$NODE_BIN")/npm" install --omit=dev 2>/dev/null \
-            || npm install --omit=dev
+          NPM_BIN="$(/usr/bin/dirname "$NODE_BIN")/npm"
+          "$NPM_BIN" install --omit=dev
           if [ "$RUN_MIGRATE" = "true" ]; then
             "$NODE_BIN" db/migrate.js || true
           fi
           if [ "$RUN_SEED" = "true" ]; then
             "$NODE_BIN" db/seed.js || true
           fi
-          if [ -n "$PM2_BIN" ] && [ -x "$PM2_BIN" ]; then
+          if [ -x "$PM2_BIN" ]; then
             "$PM2_BIN" delete mindfull-api 2>/dev/null || true
             "$PM2_BIN" start src/index.js --name mindfull-api --interpreter "$NODE_BIN"
             "$PM2_BIN" save --force || true
           else
-            echo "PM2 not found — start the API from cPanel → Setup Node.js App (startup: src/index.js)"
+            echo "PM2 not found at $PM2_BIN"
+            exit 1
           fi
           echo "API deploy done"
-          EOF
+          SCRIPT
+          scp -i ~/.ssh/deploy_key -P "${{ secrets.CPANEL_SSH_PORT }}" \
+            /tmp/deploy-api.sh \
+            "${{ secrets.CPANEL_USERNAME }}@${{ secrets.CPANEL_HOST }}:~/deploy-api.sh"
+          ssh -i ~/.ssh/deploy_key -p "${{ secrets.CPANEL_SSH_PORT }}" \
+            "${{ secrets.CPANEL_USERNAME }}@${{ secrets.CPANEL_HOST }}" \
+            "export RUN_MIGRATE='${RUN_MIGRATE}' RUN_SEED='${RUN_SEED}' NODE_BIN='${{ secrets.NODE_BIN }}' PM2_BIN='${{ secrets.PM2_BIN }}' API_DIR='${{ secrets.API_DIR }}' PATH='/usr/local/bin:/usr/bin:/bin:/home2/mindful1/npm-global/bin:/opt/alt/alt-nodejs20/root/usr/bin'; /bin/bash /home2/mindful1/deploy-api.sh"
