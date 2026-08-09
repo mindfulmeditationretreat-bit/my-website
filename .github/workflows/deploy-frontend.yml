@@ -66,8 +66,9 @@ jobs:
         run: |
           ssh -i ~/.ssh/deploy_key -p "${{ secrets.CPANEL_SSH_PORT }}" \
             "${{ secrets.CPANEL_USERNAME }}@${{ secrets.CPANEL_HOST }}" \
-            "export NODE_BIN='${{ secrets.NODE_BIN }}' PM2_BIN='${{ secrets.PM2_BIN }}' FRONTEND_DIR='${{ secrets.FRONTEND_DIR }}' FRONTEND_PORT='${{ secrets.FRONTEND_PORT }}' INTERNAL_API_URL='${{ secrets.INTERNAL_API_URL }}' API_PORT='${{ secrets.API_PORT }}'; bash -s" << 'EOF'
+            "export NODE_BIN='${{ secrets.NODE_BIN }}' PM2_BIN='${{ secrets.PM2_BIN }}' FRONTEND_DIR='${{ secrets.FRONTEND_DIR }}' FRONTEND_PORT='${{ secrets.FRONTEND_PORT }}' INTERNAL_API_URL='${{ secrets.INTERNAL_API_URL }}' API_PORT='${{ secrets.API_PORT }}'; /bin/bash -s" << 'EOF'
           set -e
+          export PATH="/usr/local/bin:/usr/bin:/bin:$HOME/npm-global/bin:/opt/alt/alt-nodejs20/root/usr/bin:/opt/alt/alt-nodejs18/root/usr/bin:$PATH"
           FRONTEND_DIR="${FRONTEND_DIR:-$HOME/nextjs}"
           FRONTEND_PORT="${FRONTEND_PORT:-3000}"
           API_PORT="${API_PORT:-5050}"

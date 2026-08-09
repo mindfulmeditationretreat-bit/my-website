@@ -116,8 +116,9 @@ jobs:
         run: |
           ssh -i ~/.ssh/deploy_key -p "${{ secrets.CPANEL_SSH_PORT }}" \
             "${{ secrets.CPANEL_USERNAME }}@${{ secrets.CPANEL_HOST }}" \
-            "export RUN_MIGRATE='${RUN_MIGRATE}' RUN_SEED='${RUN_SEED}' NODE_BIN='${{ secrets.NODE_BIN }}' PM2_BIN='${{ secrets.PM2_BIN }}' API_DIR='${{ secrets.API_DIR }}'; bash -s" << 'EOF'
+            "export RUN_MIGRATE='${RUN_MIGRATE}' RUN_SEED='${RUN_SEED}' NODE_BIN='${{ secrets.NODE_BIN }}' PM2_BIN='${{ secrets.PM2_BIN }}' API_DIR='${{ secrets.API_DIR }}'; /bin/bash -s" << 'EOF'
           set -e
+          export PATH="/usr/local/bin:/usr/bin:/bin:$HOME/npm-global/bin:/opt/alt/alt-nodejs20/root/usr/bin:/opt/alt/alt-nodejs18/root/usr/bin:$PATH"
           API_DIR="${API_DIR:-$HOME/api}"
           NODE_BIN="${NODE_BIN:-$(command -v node || true)}"
           PM2_BIN="${PM2_BIN:-$(command -v pm2 || true)}"
